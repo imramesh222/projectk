@@ -25,6 +25,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'drf_yasg',
     'channels',
+    'django_celery_beat',
     'apps.users',
     'apps.organization',
     'apps.clients',

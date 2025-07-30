@@ -1,6 +1,6 @@
 # 🚀 RBAC Project Management System
 
-A full-stack project management platform built with **Django** (Backend) and **Next.js** (Frontend), featuring **Role-Based Access Control (RBAC)**, **real-time notifications** via **Redis, WebSockets**, and **Django Channels**, and **background task processing** with **Celery**.
+A full-stack project management platform built with **Django** (Backend) and **Next.js** (Frontend), featuring **Role-Based Access Control (RBAC)**, **real-time notifications** via **Redis, WebSockets**, **Django Channels**, and **scheduled background tasks** with **Celery** and **django-celery-beat**.
 
 ---
 
@@ -9,7 +9,10 @@ A full-stack project management platform built with **Django** (Backend) and **N
 - **Backend**: Django, Django REST Framework
 - **Frontend**: Next.js (React + TailwindCSS)
 - **Real-time**: WebSocket, Django Channels, Redis Pub/Sub
-- **Async Tasks**: Celery + Redis
+- **Async & Scheduled Tasks**: 
+  - Celery 5.3.6 with Redis
+  - django-celery-beat for database-backed periodic tasks
+  - Task scheduling with Crontab and Interval schedules
 - **Database**: PostgreSQL
 - **Notifications**: WebSocket + Redis + Django Signals
 - **Deployment**: Docker, Gunicorn, Nginx
@@ -62,11 +65,23 @@ A full-stack project management platform built with **Django** (Backend) and **N
   - **Redis Pub/Sub**
   - **Custom WebSocket Consumers**
 
-### ⏳ Background Tasks (Celery)
+### ⏳ Task Management (Celery & Beat)
 
-- Email notifications for password reset, new user creation, etc.
-- Payment confirmation via external services
-- Daily summary reports to Superadmin
+- **Scheduled Tasks**:
+  - Daily digest emails at 8:00 AM
+  - Weekly summary emails every Monday at 9:00 AM
+  - Inactive user reminders at 10:00 AM daily
+
+- **Background Processing**:
+  - Email notifications (password reset, user creation, etc.)
+  - Payment processing and verification
+  - Report generation and delivery
+  - Data exports and imports
+
+- **Task Monitoring**:
+  - Flower dashboard for task monitoring
+  - Django admin for task management
+  - Task retries and error handling
 
 ### 🧪 Signals
 
@@ -77,26 +92,102 @@ A full-stack project management platform built with **Django** (Backend) and **N
 
 ---
 
-## 🗂️ Project Structure (Backend)
+## 🗂️ Project Structure
 
-🚀 Setup Instructions
-Backend
-bash
-Copy
-Edit
-cd backend
+```
+backend/
+├── apps/
+│   ├── users/                  # User management app
+│   │   ├── tasks.py           # Celery tasks
+│   │   ├── signals.py         # Django signals
+│   │   └── ...
+│   ├── organization/          # Organization management
+│   │   └── tasks.py           # Organization-related tasks
+│   └── ...
+├── backend/
+│   ├── celery.py             # Celery configuration
+│   ├── settings.py           # Django settings
+│   └── ...
+└── requirements.txt          # Project dependencies
+```
+
+## 🚀 Setup Instructions
+
+### Prerequisites
+- Python 3.11+
+- Redis
+- PostgreSQL
+- Node.js 16+ (for frontend)
+
+### Backend Setup
+
+```bash
+# Clone the repository
+git clone <repository-url>
+cd projectk/backend
+
+# Create and activate virtual environment
 python -m venv venv
-source venv/bin/activate
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install dependencies
 pip install -r requirements.txt
 
-# Start Redis
-redis-server
+# Set up environment variables
+cp .env.example .env
+# Edit .env with your configuration
 
-# Run Celery
-celery -A project worker --loglevel=info
+# Run database migrations
+python manage.py migrate
 
-# Run Django
-python manage.py runserver
+# Create superuser
+python manage.py createsuperuser
+```
+
+### Running the Application
+
+You'll need multiple terminal windows for different services:
+
+1. **Terminal 1 - Redis**
+   ```bash
+   redis-server
+   ```
+
+2. **Terminal 2 - Celery Worker**
+   ```bash
+   source venv/bin/activate
+   celery -A backend worker --loglevel=info
+   ```
+
+3. **Terminal 3 - Celery Beat** (for scheduled tasks)
+   ```bash
+   source venv/bin/activate
+   celery -A backend beat --loglevel=info --scheduler django_celery_beat.schedulers:DatabaseScheduler
+   ```
+
+4. **Terminal 4 - Django Development Server**
+   ```bash
+   source venv/bin/activate
+   python manage.py runserver
+   ```
+
+5. **Terminal 5 - Flower** (optional, for monitoring)
+   ```bash
+   source venv/bin/activate
+   celery -A backend flower --persistent --inspect_timeout=10000
+   ```
+
+## 🔍 Accessing Admin Interfaces
+
+- **Django Admin**: http://localhost:8000/admin/
+  - Manage users, groups, and permissions
+  - Configure scheduled tasks
+  - Monitor system status
+
+- **Flower Dashboard**: http://localhost:5555/
+  - Monitor Celery tasks
+  - View task history and results
+  - Manage workers
 
 
 ## 📈 ER Diagram (Mermaid)
@@ -347,11 +438,56 @@ brew install redis
 redis-server
 
 # Celery
-celery -A your_project worker --loglevel=info
-celery -A your_project beat --loglevel=info
+## 🔄 Task Scheduling with Celery Beat
 
-# Django Channels: Redis consumer runs via runserver or Daphne/Uvicorn
-🚀 Project Structure
+### Managing Periodic Tasks
+
+1. **Via Django Admin**:
+   - Navigate to http://localhost:8000/admin/django_celery_beat/
+   - Add/edit/delete periodic tasks
+   - Configure schedules (crontab, intervals, solar)
+   - Enable/disable tasks
+
+2. **Example Task Definition**:
+   ```python
+   # apps/users/tasks.py
+   from celery import shared_task
+   from django.core.mail import send_mail
+
+   @shared_task
+   def send_daily_digest():
+       # Task implementation
+       pass
+   ```
+
+3. **Common Celery Commands**:
+   ```bash
+   # Start worker
+   celery -A backend worker --loglevel=info
+
+   # Start beat scheduler
+   celery -A backend beat --loglevel=info --scheduler django_celery_beat.schedulers:DatabaseScheduler
+
+   # Monitor tasks with Flower
+   celery -A backend flower --persistent
+   ```
+
+## 🔗 API Documentation
+
+- **Swagger UI**: http://localhost:8000/swagger/
+- **ReDoc**: http://localhost:8000/redoc/
+
+## 📝 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
 
 ```
 portfolio-tracker/
