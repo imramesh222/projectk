@@ -100,8 +100,8 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # Django REST Framework
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
         'rest_framework.authentication.SessionAuthentication',
-        'rest_framework.authentication.BasicAuthentication',
     ],
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
@@ -138,3 +138,47 @@ SERVER_EMAIL = os.getenv('SERVER_EMAIL', 'imrameshrawat@gmail.com')
 
 # Timeout in seconds for blocking operations like the connection attempt
 EMAIL_TIMEOUT = 10
+
+
+# CORS and CSRF
+INSTALLED_APPS += ['corsheaders']
+MIDDLEWARE += ['corsheaders.middleware.CorsMiddleware']
+MIDDLEWARE += ['django.middleware.common.CommonMiddleware']
+
+CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",  # Frontend
+    "http://localhost:8000",  # Django development server
+]
+
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:3000",  # Frontend
+    "http://localhost:8000",  # Django development server
+]
+
+# Channel Layers Configuration (Redis)
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            "hosts": [('127.0.0.1', 6379)],
+        },
+    },
+}
+
+# For Swagger UI
+SWAGGER_SETTINGS = {
+    'SECURITY_DEFINITIONS': {
+        'Bearer': {
+            'type': 'apiKey',
+            'name': 'Authorization',
+            'in': 'header'
+        }
+    },
+    'USE_SESSION_AUTH': False,
+    'JSON_EDITOR': True,
+}
+
+# Disable CSRF for API views
+CSRF_COOKIE_HTTPONLY = False  # Allow JavaScript to read the CSRF token
+CSRF_USE_SESSIONS = False

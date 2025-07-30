@@ -34,3 +34,6 @@ django-anymail==9.2.0  # Optional, but useful for advanced email features
 
 drf-yasg==1.21.10  # Swagger/OpenAPI documentation
 celery==5.3.6  # Task queue for background processing
+
+#corsheaders
+django-cors-headers==4.3.1

@@ -8,7 +8,7 @@ from .models import User
 @receiver(post_save, sender=User)
 def send_welcome_email(sender, instance, created, **kwargs):
     if created:
-        subject = "Welcome to DevSync"
+        subject = "Welcome to ProjectK"
         message = f"Hi {instance.username}, you have been registered as {instance.role}."
         from_email = settings.DEFAULT_FROM_EMAIL
         recipient_list = [instance.email]
