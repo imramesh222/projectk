@@ -1,0 +1,36 @@
+# Core
+Django==5.0.7
+djangorestframework==3.15.1
+
+# Database
+psycopg2-binary==2.9.9  # For PostgreSQL support
+
+# Authentication
+djangorestframework-simplejwt==5.3.1  # For JWT authentication
+django-cors-headers==4.3.1  # For handling CORS
+
+# WebSockets
+uvicorn==0.23.2  # ASGI server
+channels==4.1.0  # WebSockets support
+channels-redis==4.2.0  # Redis channel layer
+
+# Utilities
+python-dotenv==1.0.1  # For environment variables
+Pillow==10.0.0  # For image processing
+django-filter==24.3  # For filtering querysets
+
+# Development
+django-debug-toolbar==4.3.0  # For debugging
+pytest==8.1.1  # For testing
+pytest-django==4.8.0  # Django test runner
+factory-boy==3.3.0  # For test fixtures
+
+# Production
+gunicorn==21.2.0  # Production WSGI server
+whitenoise==6.6.0  # For static files in production
+
+# Email
+django-anymail==9.2.0  # Optional, but useful for advanced email features
+
+drf-yasg==1.21.10  # Swagger/OpenAPI documentation
+celery==5.3.6  # Task queue for background processing
