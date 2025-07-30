@@ -41,10 +41,17 @@ class User(AbstractBaseUser, PermissionsMixin):
     username = models.CharField(max_length=150, unique=True)
     email = models.EmailField(unique=True)
     password = models.CharField(max_length=128)
-    role = models.CharField(max_length=32, choices=RoleChoices.choices)
+    first_name = models.CharField(max_length=30, blank=True, null=True)
+    last_name = models.CharField(max_length=150, blank=True, null=True)
+    role = models.CharField(max_length=32, choices=RoleChoices.choices, default='client')
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
     is_verified = models.BooleanField(default=False)
+    phone_number = models.CharField(max_length=20, blank=True, null=True)
+    profile_picture = models.ImageField(upload_to='profile_pics/', blank=True, null=True)
+    bio = models.TextField(blank=True, null=True)
+    date_joined = models.DateTimeField(auto_now_add=True, null=True, blank=True)
+    last_login = models.DateTimeField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -78,10 +85,12 @@ class User(AbstractBaseUser, PermissionsMixin):
         return self.username
 
     def get_full_name(self):
+        if self.first_name and self.last_name:
+            return f"{self.first_name} {self.last_name}"
         return self.username
 
     def get_short_name(self):
-        return self.username
+        return self.first_name if self.first_name else self.username
 
     class Meta:
         verbose_name = _('user')

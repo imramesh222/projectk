@@ -45,14 +45,30 @@ urlpatterns = [
     
     # Admin
     path('admin/', admin.site.urls),
-    path('api/', include('apps.organization.urls')),
-    path('api/', include('apps.users.urls')),
-    path('api/', include('apps.notifications.urls')),
-    path('api/', include('apps.clients.urls')),
-    # path('api/', include('apps.projects.urls')),
-    # path('api/', include('apps.payments.urls')),
-    # path('api/', include('apps.support.urls')),
-    # path('api/', include('apps.tasks.urls')),
+    
+    # API v1
+    path('api/v1/', include([
+        # Authentication & Users
+        path('auth/', include('rest_framework.urls', namespace='rest_framework')),
+        path('users/', include('apps.users.urls', namespace='users')),
+        
+        # Organization Management
+        path('org/', include('apps.organization.urls', namespace='organization')),
+        
+        # Core Functionality
+        path('clients/', include('apps.clients.urls', namespace='clients')),
+        path('projects/', include('apps.projects.urls', namespace='projects')),
+        path('tasks/', include('apps.tasks.urls', namespace='tasks')),
+        
+        # Support & Communication
+        path('support/', include('apps.support.urls', namespace='support')),
+        
+        # Notifications
+        path('notifications/', include('apps.notifications.urls', namespace='notifications')),
+        
+        # Billing & Payments
+        path('billing/', include('apps.payments.urls', namespace='payments')),
+    ]))
 
 ]
 
