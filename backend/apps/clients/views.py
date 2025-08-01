@@ -2,8 +2,9 @@ from rest_framework import viewsets, status, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.db.models import Q
+from rest_framework.permissions import IsAuthenticated
 from apps.users.permissions import (
-    IsAuthenticated, IsAdmin, IsSalesperson, IsSuperAdmin, HasOrganizationAccess
+    IsAdmin, IsSalesperson, IsSuperAdmin, HasOrganizationAccess
 )
 from .models import Client
 from .serializers import (
@@ -54,7 +55,16 @@ class ClientViewSet(viewsets.ModelViewSet):
         """
         Filter clients based on the requesting user's role.
         """
+        # Handle Swagger schema generation
+        if getattr(self, 'swagger_fake_view', False):
+            return Client.objects.none()
+            
         user = self.request.user
+        
+        # Handle unauthenticated users
+        if not user.is_authenticated:
+            return Client.objects.none()
+            
         queryset = super().get_queryset()
 
         # Apply filters from query params if provided
@@ -66,19 +76,22 @@ class ClientViewSet(viewsets.ModelViewSet):
         if status:
             queryset = queryset.filter(status=status)
             
-        assigned_to = self.request.query_params.get('assigned_to')
-        if assigned_to:
-            queryset = queryset.filter(assigned_to_id=assigned_to)
+        salesperson_id = self.request.query_params.get('salesperson')
+        if salesperson_id:
+            queryset = queryset.filter(salesperson_id=salesperson_id)
 
         # Apply role-based filtering
-        if user.role == 'superadmin':
+        if hasattr(user, 'role') and user.role == 'superadmin':
             return queryset
             
-        if user.role == 'admin':
+        if hasattr(user, 'role') and user.role == 'admin' and hasattr(user, 'organization'):
             return queryset.filter(organization=user.organization)
             
         # Salespeople can only see their own clients
-        return queryset.filter(assigned_to=user)
+        if hasattr(user, 'salesperson'):
+            return queryset.filter(salesperson=user.salesperson)
+            
+        return Client.objects.none()
 
     def perform_create(self, serializer):
         """
