@@ -35,10 +35,10 @@ const LoginForm = () => {
   });
 
   const onSubmit = async (data: LoginSchemaType) => {
-    setIsLoading(true);
     try {
+      console.log("HELLO");
       const response = await axios.post(
-        `${API_URL}/token/`,
+        `${API_URL}/users/token`,
         {
           username: data.username,
           password: data.password,
@@ -47,7 +47,6 @@ const LoginForm = () => {
           headers: {
             "Content-Type": "application/json",
           },
-          withCredentials: true,
         }
       );
 
@@ -62,9 +61,9 @@ const LoginForm = () => {
         description: "Redirecting to dashboard...",
       });
 
-      // Redirect to dashboard or home page
       router.push("/dashboard");
     } catch (error: any) {
+      console.log("ERROR", error);
       let errorMessage = "Login failed. Please try again.";
 
       if (axios.isAxiosError(error)) {
