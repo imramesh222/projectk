@@ -1,5 +1,8 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { useToast } from "@/components/ui/use-toast";
 import { API_URL } from "@/constant";
 import { loginSchema, LoginSchemaType } from "@/schema/loginScehma";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -8,7 +11,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
-import { Button } from "../ui/button";
 import {
   Form,
   FormControl,
@@ -16,10 +18,8 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from "../ui/form";
+} from "../../../ui/form";
 // ...existing code...
-import { Input } from "../ui/input";
-import { useToast } from "../ui/use-toast";
 // ...existing code...
 const LoginForm = () => {
   const router = useRouter();
@@ -35,10 +35,10 @@ const LoginForm = () => {
   });
 
   const onSubmit = async (data: LoginSchemaType) => {
+    setIsLoading(true);
     try {
-      console.log("HELLO");
       const response = await axios.post(
-        `${API_URL}/users/token`,
+        `${API_URL}/users/token/`,
         {
           username: data.username,
           password: data.password,
@@ -47,6 +47,7 @@ const LoginForm = () => {
           headers: {
             "Content-Type": "application/json",
           },
+          withCredentials: true,
         }
       );
 
@@ -61,9 +62,9 @@ const LoginForm = () => {
         description: "Redirecting to dashboard...",
       });
 
+      // Redirect to dashboard or home page
       router.push("/dashboard");
     } catch (error: any) {
-      console.log("ERROR", error);
       let errorMessage = "Login failed. Please try again.";
 
       if (axios.isAxiosError(error)) {
