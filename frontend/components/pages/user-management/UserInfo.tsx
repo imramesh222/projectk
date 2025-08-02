@@ -4,7 +4,7 @@ import { API_URL } from "@/constant";
 import { useQuery } from "@tanstack/react-query";
 import axios from "axios";
 
-const DashboardInfo = () => {
+const UserInfo = () => {
   const { data } = useQuery({
     queryKey: ["dashboard-info"],
     queryFn: async () => {
@@ -19,7 +19,7 @@ const DashboardInfo = () => {
   });
 
   console.log("DATA", data);
-  return <div>DashboardInfo</div>;
+  return <div>UserInfo</div>;
 };
 
-export default DashboardInfo;
+export default UserInfo;

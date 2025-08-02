@@ -3,14 +3,15 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
-import { API_URL } from "@/constant";
 import { loginSchema, LoginSchemaType } from "@/schema/loginScehma";
+import { login } from "@/store/authThunk";
+import { AppDispatch } from "@/store/store";
 import { zodResolver } from "@hookform/resolvers/zod";
-import axios from "axios";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
+import { useDispatch } from "react-redux";
 import {
   Form,
   FormControl,
@@ -26,6 +27,8 @@ const LoginForm = () => {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
 
+  const dispatch = useDispatch<AppDispatch>();
+
   const form = useForm<LoginSchemaType>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
@@ -35,54 +38,56 @@ const LoginForm = () => {
   });
 
   const onSubmit = async (data: LoginSchemaType) => {
-    setIsLoading(true);
-    try {
-      const response = await axios.post(
-        `${API_URL}/users/token/`,
-        {
-          username: data.username,
-          password: data.password,
-        },
-        {
-          headers: {
-            "Content-Type": "application/json",
-          },
-          withCredentials: true,
-        }
-      );
+    dispatch(login({ username: data.username, password: data.password }));
 
-      // Save tokens and user data
-      const { access, refresh, user } = response.data;
-      localStorage.setItem("access_token", access);
-      localStorage.setItem("refresh_token", refresh);
-      localStorage.setItem("user", JSON.stringify(user));
+    // setIsLoading(true);
+    // try {
+    //   const response = await axios.post(
+    //     `${API_URL}/users/token/`,
+    //     {
+    //       username: data.username,
+    //       password: data.password,
+    //     },
+    //     {
+    //       headers: {
+    //         "Content-Type": "application/json",
+    //       },
+    //       withCredentials: true,
+    //     }
+    //   );
 
-      toast({
-        title: "Login successful",
-        description: "Redirecting to dashboard...",
-      });
+    //   // Save tokens and user data
+    //   const { access, refresh, user } = response.data;
+    //   localStorage.setItem("access_token", access);
+    //   localStorage.setItem("refresh_token", refresh);
+    //   localStorage.setItem("user", JSON.stringify(user));
 
-      // Redirect to dashboard or home page
-      router.push("/dashboard");
-    } catch (error: any) {
-      let errorMessage = "Login failed. Please try again.";
+    //   toast({
+    //     title: "Login successful",
+    //     description: "Redirecting to dashboard...",
+    //   });
 
-      if (axios.isAxiosError(error)) {
-        if (error.response?.status === 401) {
-          errorMessage = "Invalid username or password";
-        } else if (error.response?.data?.detail) {
-          errorMessage = error.response.data.detail;
-        }
-      }
+    //   // Redirect to dashboard or home page
+    //   router.push("/overview");
+    // } catch (error: any) {
+    //   let errorMessage = "Login failed. Please try again.";
 
-      toast({
-        title: "Error",
-        description: errorMessage,
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
+    //   if (axios.isAxiosError(error)) {
+    //     if (error.response?.status === 401) {
+    //       errorMessage = "Invalid username or password";
+    //     } else if (error.response?.data?.detail) {
+    //       errorMessage = error.response.data.detail;
+    //     }
+    //   }
+
+    //   toast({
+    //     title: "Error",
+    //     description: errorMessage,
+    //     variant: "destructive",
+    //   });
+    // } finally {
+    //   setIsLoading(false);
+    // }
   };
 
   return (
