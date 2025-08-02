@@ -1,4 +1,5 @@
 from rest_framework import permissions
+from apps.organization.models import AdminAssignment
 
 
 class BaseRolePermission(permissions.BasePermission):
@@ -21,6 +22,40 @@ class IsSuperAdmin(BaseRolePermission):
 class IsAdmin(BaseRolePermission):
     """Allows access only to admin users."""
     role = 'admin'
+
+
+class IsOrganizationAdmin(permissions.BasePermission):
+    """
+    Allows access only to organization admin users.
+    Users with 'admin' role in any organization are considered organization admins.
+    """
+    def has_permission(self, request, view):
+        return bool(
+            request.user and 
+            request.user.is_authenticated and 
+            (
+                request.user.role == 'admin' or
+                AdminAssignment.objects.filter(
+                    user=request.user,
+                    role='admin'
+                ).exists()
+            )
+        )
+
+
+class IsSelfOrAdmin(permissions.BasePermission):
+    """
+    Allows access only to the user themselves or admin users.
+    """
+    def has_object_permission(self, request, view, obj):
+        # Allow access if the user is an admin or the object is the user themselves
+        is_admin = (
+            request.user and 
+            request.user.is_authenticated and 
+            request.user.role == 'admin'
+        )
+        is_self = request.user and request.user.is_authenticated and obj == request.user
+        return is_admin or is_self
 
 
 class IsSalesperson(BaseRolePermission):

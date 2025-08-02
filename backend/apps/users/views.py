@@ -14,6 +14,8 @@ from django.db import transaction
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
 from django.conf import settings
+import json
+import logging
 from django.utils import timezone
 from django.db.models import Q
 
@@ -23,50 +25,74 @@ from .permissions import (
     IsSuperAdmin, 
     IsOrganizationAdmin, 
     IsSelfOrAdmin,
-    IsAdminOrSelf  # Add missing import
+    IsAdminOrSelf
 )
-from .utils.email_utils import send_welcome_email
+from .tasks import send_welcome_email_task
+
+# Set up logging
+logger = logging.getLogger(__name__)
 
 # Get the User model
 User = get_user_model()
 
-@api_view(['POST'])
-@permission_classes([AllowAny])
-@transaction.atomic
+def _process_registration_data(request_data, user=None):
+    """Process and validate registration data."""
+    data = request_data.copy()
+    
+    # Handle both camelCase and snake_case field names for first/last name
+    if 'firstName' in data and 'first_name' not in data:
+        data['first_name'] = data.pop('firstName', '')
+    if 'lastName' in data and 'last_name' not in data:
+        data['last_name'] = data.pop('lastName', '')
+    
+    # Default role is 'user' for new registrations
+    # Only superadmins can specify a different role during user creation
+    if 'role' in data:
+        if not (user and user.is_authenticated and user.role == 'superadmin'):
+            # Non-superadmin trying to set role - remove it
+            data.pop('role', None)
+    
+    # If role is not set or was removed, default to 'user'
+    if 'role' not in data:
+        data['role'] = 'user'
+    
+    # Set default values for required fields if not provided
+    data.setdefault('is_active', True)
+    data.setdefault('date_joined', timezone.now())
+    
+    return data
+
 def register_user(request):
     """
     Register a new user.
     All new users get 'user' role by default.
     Only superadmins can assign other roles during registration.
+    
+    This function can be called from both API views and class-based views.
     """
-    data = request.data.copy()
+    # Handle both Django HttpRequest and DRF Request objects
+    if hasattr(request, 'data'):
+        data = request.data
+        user = getattr(request, 'user', None)
+    else:
+        data = request.POST.dict()
+        user = getattr(request, 'user', None)
+        # Handle JSON data in request body for non-API requests
+        if request.content_type == 'application/json':
+            try:
+                data.update(json.loads(request.body))
+            except json.JSONDecodeError:
+                pass
+    
     email_sent = False
     email_status = 'disabled'
     
     try:
-        # Handle both camelCase and snake_case field names for first/last name
-        if 'firstName' in data and 'first_name' not in data:
-            data['first_name'] = data.pop('firstName', '')
-        if 'lastName' in data and 'last_name' not in data:
-            data['last_name'] = data.pop('lastName', '')
+        # Process registration data
+        processed_data = _process_registration_data(data, user)
         
-        # Default role is 'user' for new registrations
-        # Only superadmins can specify a different role during user creation
-        if 'role' in data:
-            if not (request.user.is_authenticated and request.user.role == 'superadmin'):
-                # Non-superadmin trying to set role - remove it
-                data.pop('role', None)
-        
-        # If role is not set or was removed, default to 'user'
-        if 'role' not in data:
-            data['role'] = 'user'
-        
-        # Set default values for required fields if not provided
-        data.setdefault('is_active', True)
-        data.setdefault('date_joined', timezone.now())
-        
-        # Password validation is now handled in the serializer
-        serializer = UserSerializer(data=data)
+        # Password validation is handled in the serializer
+        serializer = UserSerializer(data=processed_data)
         
         if not serializer.is_valid():
             # Format validation errors for better client-side handling
@@ -81,59 +107,26 @@ def register_user(request):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        # Create the user within a transaction
+        # Save the user
         user = serializer.save()
         
-        # Set password separately to handle hashing
-        if 'password' in data:
-            user.set_password(data['password'])
-            user.save(update_fields=['password'])
-        
-        # Generate tokens
-        refresh = RefreshToken.for_user(user)
-        
-        # Send welcome email in the background if email is enabled
-        if getattr(settings, 'EMAIL_ENABLED', False) and user.email:
+        # Send welcome email asynchronously
+        if getattr(settings, 'SEND_WELCOME_EMAIL', False):
             try:
-                from .tasks import send_welcome_email_task
                 send_welcome_email_task.delay(user.id)
                 email_sent = True
-                email_status = 'scheduled'
+                email_status = 'queued'
             except Exception as e:
-                # Log the error but don't fail the registration
-                logger = logging.getLogger(__name__)
-                logger.error(f"Failed to schedule welcome email: {str(e)}", exc_info=True)
-                email_sent = False
-                email_status = 'failed'
+                logger.error(f"Failed to queue welcome email: {str(e)}")
+                email_status = f'error: {str(e)}'
         
         # Prepare response data
         response_data = {
-            'user': {
-                'id': str(user.id),
-                'email': user.email,
-                'first_name': user.first_name,
-                'last_name': user.last_name,
-                'role': user.role,
-                'is_active': user.is_active,
-                'date_joined': user.date_joined.isoformat() if user.date_joined else None,
-                'last_login': user.last_login.isoformat() if user.last_login else None
-            },
-            'tokens': {
-                'refresh': str(refresh),
-                'access': str(refresh.access_token),
-                'expires_in': int(settings.SIMPLE_JWT['ACCESS_TOKEN_LIFETIME'].total_seconds())
-            },
-            'status': 'success',
-            'message': 'Registration successful. Welcome to our platform!',
-            'account': {
-                'status': 'active' if user.is_active else 'pending_activation',
-                'email_verification_required': not user.is_active,
-                'welcome_email_sent': email_sent,
-                'email_status': email_status
-            },
+            'email_sent': email_sent,
+            'email_status': email_status,
             'next_steps': [
-                'Check your email for a welcome message' if email_sent else 'Enable email to receive notifications',
-                'Complete your profile settings',
+                'Check your email to verify your account' if email_sent else 'Email verification not required',
+                'Log in with your credentials to access your account',
                 'Explore the dashboard'
             ]
         }
@@ -163,7 +156,7 @@ def register_user(request):
 class UserRegisterView(APIView):
     """
     Class-based view for user registration.
-    Wraps the register_user function for better integration with DRF's class-based views.
+    Uses the register_user function internally.
     """
     permission_classes = [AllowAny]
     authentication_classes = []

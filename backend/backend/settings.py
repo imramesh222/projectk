@@ -166,11 +166,10 @@ AUTH_USER_MODEL = 'users.User'
 
 # Email Configuration
 EMAIL_ENABLED = os.getenv('EMAIL_ENABLED', 'True') == 'True'
-EMAIL_BACKEND = os.getenv(
-    'EMAIL_BACKEND',
-    'django.core.mail.backends.console.EmailBackend' if DEBUG 
-    else 'django.core.mail.backends.smtp.EmailBackend'
-)
+# Enable/disable welcome emails
+SEND_WELCOME_EMAIL = os.getenv('SEND_WELCOME_EMAIL', 'True') == 'True'
+# Always use SMTP backend for sending real emails
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
 EMAIL_PORT = int(os.getenv('EMAIL_PORT', 587))
 EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True') == 'True'

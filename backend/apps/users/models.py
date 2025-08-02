@@ -6,14 +6,8 @@ from django.contrib.auth.models import (
 from django.utils.translation import gettext_lazy as _
 
 class RoleChoices(models.TextChoices):
-    USER = 'user', 'User'  # Default role for all new users
-    SUPERADMIN = 'superadmin', 'Superadmin'
-    ADMIN = 'admin', 'Admin'
-    SALESPERSON = 'salesperson', 'Salesperson'
-    VERIFIER = 'verifier', 'Verifier'
-    PROJECT_MANAGER = 'project_manager', 'Project Manager'
-    DEVELOPER = 'developer', 'Developer'
-    SUPPORT = 'support', 'Support'
+    USER = 'user', 'User'  # Default role for all users
+    SUPERADMIN = 'superadmin', 'Superadmin'  # Only for system-wide superusers
 
 class UserManager(BaseUserManager):
     def create_user(self, username, email, password=None, **extra_fields):

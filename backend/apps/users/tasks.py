@@ -1,5 +1,5 @@
 from celery import shared_task
-from django.core.mail import send_mail, send_mass_mail
+from django.core.mail import send_mail, send_mass_mail, EmailMultiAlternatives
 from django.conf import settings
 from django.utils import timezone
 from datetime import timedelta
@@ -23,29 +23,31 @@ def send_welcome_email_task(self, user_id):
         user = User.objects.get(id=user_id)
         
         # Render email content
-        context = {
+        subject = 'Welcome to Our Platform!'
+        
+        # Render HTML email template
+        html_message = render_to_string('emails/welcome_email.html', {
             'user': user,
             'login_url': f"{settings.FRONTEND_URL}/login" if hasattr(settings, 'FRONTEND_URL') else '#',
             'support_email': getattr(settings, 'DEFAULT_FROM_EMAIL', 'support@example.com'),
-        }
+        })
         
-        subject = 'Welcome to Our Platform!'
-        html_message = render_to_string('emails/welcome_email.html', context)
-        plain_message = strip_tags(html_message)
+        # Create plain text version
+        text_message = strip_tags(html_message)
         
         # Send the email
-        send_mail(
+        email = EmailMultiAlternatives(
             subject=subject,
-            message=plain_message,
+            body=text_message,
             from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[user.email],
-            html_message=html_message,
-            fail_silently=False,
+            to=[user.email],
+            reply_to=[getattr(settings, 'REPLY_TO_EMAIL', settings.DEFAULT_FROM_EMAIL)]
         )
+        email.attach_alternative(html_message, "text/html")
+        email.send(fail_silently=False)
         
         logger.info(f"Welcome email sent to {user.email}")
         return True
-        
     except User.DoesNotExist:
         logger.error(f"User with id {user_id} does not exist")
         return False
