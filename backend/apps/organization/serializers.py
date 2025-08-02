@@ -3,6 +3,8 @@ from .models import Organization, AdminAssignment, Salesperson, Verifier, Projec
 from apps.users.models import User
 from apps.users.serializers import UserSerializer
 
+# Note: OrganizationCreateSerializer has been moved to serializers/organization.py
+
 
 class OrganizationSerializer(serializers.ModelSerializer):
     """Basic organization serializer for list and create operations."""
@@ -33,12 +35,6 @@ class OrganizationDetailSerializer(OrganizationSerializer):
     
     def get_member_count(self, obj):
         return User.objects.filter(organization=obj).count()
-
-
-class OrganizationCreateSerializer(OrganizationSerializer):
-    """Serializer for organization creation with additional validation."""
-    class Meta(OrganizationSerializer.Meta):
-        fields = [f for f in OrganizationSerializer.Meta.fields if f not in ['id', 'created_at', 'updated_at']]
 
 
 class AdminAssignmentSerializer(serializers.ModelSerializer):

@@ -5,6 +5,7 @@ from django.utils.translation import gettext_lazy as _
 from apps.users.models import User
 
 class OrganizationRoleChoices(models.TextChoices):
+    USER = 'user', _('User')  # Default role for new organization members
     ADMIN = 'admin', _('Admin')
     SALESPERSON = 'salesperson', _('Salesperson')
     VERIFIER = 'verifier', _('Verifier')

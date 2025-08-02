@@ -13,8 +13,9 @@ class OrganizationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Organization
         fields = [
-            'id', 'name', 'description', 'website', 'logo', 'industry',
-            'founded_date', 'size', 'is_active', 'created_at', 'updated_at'
+            'id', 'name', 'description', 'website', 'logo',
+            'is_active', 'created_at', 'updated_at', 'phone_number',
+            'email', 'address', 'city', 'state'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
 
@@ -27,8 +28,7 @@ class OrganizationDetailSerializer(OrganizationSerializer):
     
     class Meta(OrganizationSerializer.Meta):
         fields = OrganizationSerializer.Meta.fields + [
-            'member_count', 'admin_count', 'billing_email', 'billing_address',
-            'billing_city', 'billing_state', 'billing_postal_code', 'billing_country'
+            'member_count', 'admin_count'
         ]
     
     def get_member_count(self, obj):
@@ -46,7 +46,7 @@ class OrganizationCreateSerializer(OrganizationSerializer):
     Serializer for creating a new organization
     """
     class Meta(OrganizationSerializer.Meta):
-        fields = ['name', 'description', 'website', 'logo', 'industry', 'founded_date', 'size']
+        fields = ['name', 'description', 'website', 'logo', 'phone_number', 'email', 'address', 'city', 'state']
     
     def create(self, validated_data):
         # Create the organization

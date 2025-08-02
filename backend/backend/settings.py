@@ -14,7 +14,7 @@ SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-0eiji9!8!q6p#lics3m2qz&%$0
 DEBUG = os.getenv('DEBUG', 'False') == 'True'
 
 # ALLOWED_HOSTS = ['*']
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', '192.168.101.4']
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', '192.168.101.8']
 
 
 
@@ -187,7 +187,10 @@ EMAIL_TIMEOUT = int(os.getenv('EMAIL_TIMEOUT', '10'))
 
 
 # CORS and CSRF Configuration
-# CORS settings
+# ============================
+
+# CORS Settings
+# -------------
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
@@ -195,7 +198,15 @@ CORS_ALLOWED_ORIGINS = [
     "http://192.168.101.4:3000",
 ]
 
-# Allow all needed headers
+CORS_ALLOW_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
+]
+
 CORS_ALLOW_HEADERS = [
     'accept',
     'accept-encoding',
@@ -206,46 +217,12 @@ CORS_ALLOW_HEADERS = [
     'user-agent',
     'x-csrftoken',
     'x-requested-with',
-    'withcredentials',
 ]
+CORS_EXPOSE_HEADERS = ['Content-Type', 'X-CSRFToken']
+CORS_PREFLIGHT_MAX_AGE = 86400  # 24 hours
 
-# Allow all needed methods
-CORS_ALLOW_METHODS = [
-    'DELETE',
-    'GET',
-    'OPTIONS',
-    'PATCH',
-    'POST',
-    'PUT',
-]
-
-# CSRF settings
-CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS.copy()
-CSRF_COOKIE_HTTPONLY = False  # Allow JavaScript to read CSRF cookie
-CSRF_COOKIE_SAMESITE = 'Lax'  # Or 'None' if using HTTPS
-CSRF_USE_SESSIONS = False
-CSRF_COOKIE_SECURE = False  # Set to True in production with HTTPS
-CSRF_COOKIE_NAME = 'csrftoken'
-CSRF_HEADER_NAME = 'X-CSRFToken'
-
-# Session settings (if using session authentication)
-SESSION_COOKIE_HTTPONLY = True
-SESSION_COOKIE_SAMESITE = 'Lax'  # Or 'None' if using HTTPS
-SESSION_COOKIE_SECURE = False  # Set to True in production with HTTPS
-
-# Security settings for production (uncomment in production)
-if not DEBUG:
-    SECURE_SSL_REDIRECT = True
-    SESSION_COOKIE_SECURE = True
-    CSRF_COOKIE_SECURE = True
-    SECURE_BROWSER_XSS_FILTER = True
-    SECURE_CONTENT_TYPE_NOSNIFF = True
-    SECURE_HSTS_SECONDS = 31536000  # 1 year
-    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-    SECURE_HSTS_PRELOAD = True
-    X_FRAME_OPTIONS = 'DENY'
-
-# CSRF Trusted Origins - Required for HTTPS and cross-domain requests
+# CSRF Settings
+# -------------
 CSRF_TRUSTED_ORIGINS = [
     'http://localhost:3000',
     'http://127.0.0.1:3000',
@@ -253,29 +230,45 @@ CSRF_TRUSTED_ORIGINS = [
     'http://localhost:8000',
     'http://192.168.101.4:8000',
 ]
-
-# CORS settings for preflight requests
-CORS_PREFLIGHT_MAX_AGE = 86400
-CORS_EXPOSE_HEADERS = ['Content-Type', 'X-CSRFToken']
-CORS_ALLOW_CREDENTIALS = True
-
-# Security Headers (relaxed for development)
-SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'http')
-SECURE_SSL_REDIRECT = False
-SESSION_COOKIE_SECURE = False
-CSRF_COOKIE_SECURE = False
+CSRF_COOKIE_NAME = 'csrftoken'
+CSRF_HEADER_NAME = 'X-CSRFToken'
 CSRF_COOKIE_HTTPONLY = False  # Allow JavaScript to read CSRF token
-SESSION_COOKIE_HTTPONLY = False  # Allow JavaScript to read session cookie
-SECURE_BROWSER_XSS_FILTER = True
-SECURE_CONTENT_TYPE_NOSNIFF = True
-X_FRAME_OPTIONS = 'SAMEORIGIN'
-
-# Allow CSRF cookie to be read by JavaScript
+CSRF_COOKIE_SAMESITE = 'Lax'   # 'Lax' is sufficient for most cases
 CSRF_USE_SESSIONS = False
-CSRF_COOKIE_SAMESITE = 'Lax'
-SESSION_COOKIE_SAMESITE = 'Lax'
+CSRF_COOKIE_SECURE = False     # Set to True in production with HTTPS
+
+# Session Settings
+# ----------------
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = 'Lax'  # 'Lax' is sufficient for most cases
+SESSION_COOKIE_SECURE = False    # Set to True in production with HTTPS
+
+# Security Settings
+# ----------------
+# Security settings that are different in development vs production
+SECURE_SETTINGS = {
+    'SECURE_SSL_REDIRECT': not DEBUG,
+    'SESSION_COOKIE_SECURE': not DEBUG,
+    'CSRF_COOKIE_SECURE': not DEBUG,
+    'SECURE_BROWSER_XSS_FILTER': True,
+    'SECURE_CONTENT_TYPE_NOSNIFF': True,
+    'X_FRAME_OPTIONS': 'DENY',
+    'SECURE_HSTS_SECONDS': 31536000 if not DEBUG else 0,  # 1 year if not DEBUG
+    'SECURE_HSTS_INCLUDE_SUBDOMAINS': not DEBUG,
+    'SECURE_HSTS_PRELOAD': not DEBUG,
+}
+
+# Apply security settings
+for setting, value in SECURE_SETTINGS.items():
+    globals()[setting] = value
+
+# Proxy/SSL Settings
+# ------------------
+# Configure this if you're behind a proxy/load balancer
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https' if not DEBUG else 'http')
 
 # Channel Layers Configuration (Redis)
+# Keep only one CHANNEL_LAYERS configuration
 CHANNEL_LAYERS = {
     'default': {
         'BACKEND': 'channels_redis.core.RedisChannelLayer',

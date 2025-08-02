@@ -20,23 +20,22 @@ urlpatterns = [
     path('', include(router.urls)),
     
     # Organization member management
-    path('organizations/<uuid:pk>/members/', 
+    path('organizations/<uuid:org_id>/members/', 
          OrganizationViewSet.as_view({'get': 'members'}), 
          name='organization-members'),
-    path('organizations/<uuid:org_id>/invite/',
-         OrganizationViewSet.as_view({'post': 'invite_member'}),
-         name='organization-invite'),
-    path('organizations/<uuid:org_id>/members/<uuid:member_id>/',
-         OrganizationViewSet.as_view({
-             'get': 'retrieve_member',
-             'patch': 'update_member',
-             'delete': 'remove_member'
-         }),
-         name='organization-member-detail'),
-    path('organizations/<uuid:org_id>/members/<uuid:member_id>/activate/',
-         OrganizationViewSet.as_view({'post': 'activate_member'}),
-         name='organization-member-activate'),
-    path('organizations/<uuid:org_id>/members/<uuid:member_id>/deactivate/',
-         OrganizationViewSet.as_view({'post': 'deactivate_member'}),
-         name='organization-member-deactivate'),
+         
+    # Add member to organization
+    path('organizations/<uuid:org_id>/add-member/',
+         OrganizationViewSet.as_view({'post': 'add_member'}),
+         name='organization-add-member'),
+         
+    # Join organization (for self-registration)
+    path('organizations/<org_id>/join/',
+         OrganizationViewSet.as_view({'post': 'join'}),
+         name='organization-join'),
+         
+    # Developer-specific endpoints
+    path('developers/',
+         OrganizationMemberViewSet.as_view({'get': 'developers'}),
+         name='organization-developers'),
 ]

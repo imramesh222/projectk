@@ -13,6 +13,26 @@ class OrganizationMemberSerializer(serializers.ModelSerializer):
             'is_active', 'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
+    
+    def to_representation(self, instance):
+        """
+        Override to include nested user details in the response.
+        """
+        representation = super().to_representation(instance)
+        
+        # Include user details at the top level for backward compatibility
+        if 'user_details' in representation and representation['user_details']:
+            user_data = representation.pop('user_details')
+            representation['user'] = {
+                'id': user_data['id'],
+                'username': user_data['username'],
+                'email': user_data['email'],
+                'first_name': user_data.get('first_name', ''),
+                'last_name': user_data.get('last_name', ''),
+                'is_active': user_data.get('is_active', True)
+            }
+            
+        return representation
 
 class OrganizationMemberCreateSerializer(serializers.ModelSerializer):
     class Meta:
