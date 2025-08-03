@@ -13,7 +13,10 @@ SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-0eiji9!8!q6p#lics3m2qz&%$0
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DEBUG', 'False') == 'True'
 
-ALLOWED_HOSTS = []
+# ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', '192.168.101.8']
+
+
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -22,6 +25,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'corsheaders',
     'rest_framework',
     'drf_yasg',
     'channels',
@@ -38,8 +42,9 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
-    'django.contrib.sessions.middleware.SessionMiddleware',
+    'corsheaders.middleware.CorsMiddleware',  # Should be as high as possible, especially before CommonMiddleware
     'django.middleware.common.CommonMiddleware',
+    'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
@@ -103,7 +108,7 @@ from datetime import timedelta
 
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
     'ROTATE_REFRESH_TOKENS': False,
     'BLACKLIST_AFTER_ROTATION': True,
     'ALGORITHM': 'HS256',
@@ -160,6 +165,10 @@ CELERY_RESULT_SERIALIZER = 'json'
 AUTH_USER_MODEL = 'users.User'
 
 # Email Configuration
+EMAIL_ENABLED = os.getenv('EMAIL_ENABLED', 'True') == 'True'
+# Enable/disable welcome emails
+SEND_WELCOME_EMAIL = os.getenv('SEND_WELCOME_EMAIL', 'True') == 'True'
+# Always use SMTP backend for sending real emails
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
 EMAIL_PORT = int(os.getenv('EMAIL_PORT', 587))
@@ -167,29 +176,99 @@ EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True') == 'True'
 EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', 'imrameshrawat@gmail.com')
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', 'pfen jzti qjyf dxbh')
 DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'imrameshrawat@gmail.com')
-SERVER_EMAIL = os.getenv('SERVER_EMAIL', 'imrameshrawat@gmail.com')
+REPLY_TO_EMAIL = os.getenv('REPLY_TO_EMAIL', 'noreply@example.com')
+SERVER_EMAIL = os.getenv('SERVER_EMAIL', 'noreply@example.com')
+
+# Frontend URL for email links
+FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:3000')
 
 # Timeout in seconds for blocking operations like the connection attempt
-EMAIL_TIMEOUT = 10
+EMAIL_TIMEOUT = int(os.getenv('EMAIL_TIMEOUT', '10'))
 
 
-# CORS and CSRF
-INSTALLED_APPS += ['corsheaders']
-MIDDLEWARE += ['corsheaders.middleware.CorsMiddleware']
-MIDDLEWARE += ['django.middleware.common.CommonMiddleware']
+# CORS and CSRF Configuration
+# ============================
 
+# CORS Settings
+# -------------
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",  # Frontend
-    "http://localhost:8000",  # Django development server
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://192.168.101.4:3000",
 ]
 
-CSRF_TRUSTED_ORIGINS = [
-    "http://localhost:3000",  # Frontend
-    "http://localhost:8000",  # Django development server
+CORS_ALLOW_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
 ]
+
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+]
+CORS_EXPOSE_HEADERS = ['Content-Type', 'X-CSRFToken']
+CORS_PREFLIGHT_MAX_AGE = 86400  # 24 hours
+
+# CSRF Settings
+# -------------
+CSRF_TRUSTED_ORIGINS = [
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    'http://192.168.101.4:3000',
+    'http://localhost:8000',
+    'http://192.168.101.4:8000',
+]
+CSRF_COOKIE_NAME = 'csrftoken'
+CSRF_HEADER_NAME = 'X-CSRFToken'
+CSRF_COOKIE_HTTPONLY = False  # Allow JavaScript to read CSRF token
+CSRF_COOKIE_SAMESITE = 'Lax'   # 'Lax' is sufficient for most cases
+CSRF_USE_SESSIONS = False
+CSRF_COOKIE_SECURE = False     # Set to True in production with HTTPS
+
+# Session Settings
+# ----------------
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = 'Lax'  # 'Lax' is sufficient for most cases
+SESSION_COOKIE_SECURE = False    # Set to True in production with HTTPS
+
+# Security Settings
+# ----------------
+# Security settings that are different in development vs production
+SECURE_SETTINGS = {
+    'SECURE_SSL_REDIRECT': not DEBUG,
+    'SESSION_COOKIE_SECURE': not DEBUG,
+    'CSRF_COOKIE_SECURE': not DEBUG,
+    'SECURE_BROWSER_XSS_FILTER': True,
+    'SECURE_CONTENT_TYPE_NOSNIFF': True,
+    'X_FRAME_OPTIONS': 'DENY',
+    'SECURE_HSTS_SECONDS': 31536000 if not DEBUG else 0,  # 1 year if not DEBUG
+    'SECURE_HSTS_INCLUDE_SUBDOMAINS': not DEBUG,
+    'SECURE_HSTS_PRELOAD': not DEBUG,
+}
+
+# Apply security settings
+for setting, value in SECURE_SETTINGS.items():
+    globals()[setting] = value
+
+# Proxy/SSL Settings
+# ------------------
+# Configure this if you're behind a proxy/load balancer
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https' if not DEBUG else 'http')
 
 # Channel Layers Configuration (Redis)
+# Keep only one CHANNEL_LAYERS configuration
 CHANNEL_LAYERS = {
     'default': {
         'BACKEND': 'channels_redis.core.RedisChannelLayer',
@@ -202,14 +281,29 @@ CHANNEL_LAYERS = {
 # For Swagger UI
 SWAGGER_SETTINGS = {
     'SECURITY_DEFINITIONS': {
-        'Bearer': {
+        'JWT': {
             'type': 'apiKey',
             'name': 'Authorization',
-            'in': 'header'
+            'in': 'header',
+            'description': 'Enter your JWT token in the format: Bearer <token>'
         }
     },
     'USE_SESSION_AUTH': False,
     'JSON_EDITOR': True,
+    'DEFAULT_MODEL_RENDERING': 'example',
+    'DEFAULT_MODEL_DEPTH': -1,
+    'DEFAULT_AUTO_SCHEMA_CLASS': 'drf_yasg.inspectors.SwaggerAutoSchema',
+    'DEFAULT_FILTER_INSPECTORS': [
+        'drf_yasg.inspectors.CoreAPICompatInspector',
+    ],
+    'DEFAULT_PAGINATOR_INSPECTORS': [
+        'drf_yasg.inspectors.DjangoRestResponsePagination',
+        'drf_yasg.inspectors.CoreAPICompatInspector',
+    ],
+    'DEFAULT_INFO': 'backend.urls.swagger_info',
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.AllowAny',
+    ],
 }
 
 # Disable CSRF for API views

@@ -1,6 +1,10 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import OrganizationViewSet, AdminAssignmentViewSet
+
+from .views import (
+    OrganizationViewSet,
+    OrganizationMemberViewSet
+)
 
 # Define the application namespace
 app_name = 'organization'
@@ -8,23 +12,30 @@ app_name = 'organization'
 # Create a router for ViewSets
 router = DefaultRouter()
 router.register(r'organizations', OrganizationViewSet, basename='organization')
-router.register(r'admin-assignments', AdminAssignmentViewSet, basename='admin-assignment')
+router.register(r'organization-members', OrganizationMemberViewSet, basename='organization-member')
 
 # Additional URL patterns that don't fit into ViewSets
 urlpatterns = [
     # Include all ViewSet URLs
     path('', include(router.urls)),
     
-    # Organization-specific endpoints
-    path('organizations/<uuid:pk>/members/', 
+    # Organization member management
+    path('organizations/<uuid:org_id>/members/', 
          OrganizationViewSet.as_view({'get': 'members'}), 
          name='organization-members'),
-    
-    # Admin assignment actions
-    path('admin-assignments/<uuid:pk>/deactivate/', 
-         AdminAssignmentViewSet.as_view({'post': 'deactivate'}), 
-         name='admin-assignment-deactivate'),
-    path('admin-assignments/<uuid:pk>/reactivate/', 
-         AdminAssignmentViewSet.as_view({'post': 'reactivate'}), 
-         name='admin-assignment-reactivate'),
+         
+    # Add member to organization
+    path('organizations/<uuid:org_id>/add-member/',
+         OrganizationViewSet.as_view({'post': 'add_member'}),
+         name='organization-add-member'),
+         
+    # Join organization (for self-registration)
+    path('organizations/<org_id>/join/',
+         OrganizationViewSet.as_view({'post': 'join'}),
+         name='organization-join'),
+         
+    # Developer-specific endpoints
+    path('developers/',
+         OrganizationMemberViewSet.as_view({'get': 'developers'}),
+         name='organization-developers'),
 ]

@@ -5,8 +5,9 @@ from django.db.models import Q
 from django.core.mail import send_mail
 from django.conf import settings
 
+from rest_framework.permissions import IsAuthenticated
 from apps.users.permissions import (
-    IsAuthenticated, IsSuperAdmin, IsAdmin, HasOrganizationAccess
+    IsSuperAdmin, IsAdmin, HasOrganizationAccess
 )
 from .models import Organization, AdminAssignment, Salesperson, Verifier, ProjectManager, Developer, Support
 from .serializers import (
@@ -55,11 +56,20 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         """
         Filter organizations based on the requesting user's role.
         """
+        # Handle Swagger schema generation
+        if getattr(self, 'swagger_fake_view', False):
+            return Organization.objects.none()
+            
         user = self.request.user
+        
+        # Handle unauthenticated users
+        if not user.is_authenticated:
+            return Organization.objects.none()
+            
         queryset = Organization.objects.all()
 
         # Superadmins can see all organizations
-        if user.role == 'superadmin':
+        if hasattr(user, 'role') and user.role == 'superadmin':
             return queryset
 
         # Admins can see their own organization
@@ -70,7 +80,9 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         role_attrs = ['salesperson', 'verifier', 'projectmanager', 'developer', 'support']
         for attr in role_attrs:
             if hasattr(user, attr):
-                return queryset.filter(id=getattr(user, attr).organization_id)
+                org_attr = getattr(user, attr, None)
+                if org_attr and hasattr(org_attr, 'organization_id'):
+                    return queryset.filter(id=org_attr.organization_id)
 
         return Organization.objects.none()
 
@@ -122,15 +134,24 @@ class AdminAssignmentViewSet(viewsets.ModelViewSet):
         """
         Filter admin assignments based on the requesting user's role.
         """
+        # Handle Swagger schema generation
+        if getattr(self, 'swagger_fake_view', False):
+            return AdminAssignment.objects.none()
+            
         user = self.request.user
+        
+        # Handle unauthenticated users
+        if not user.is_authenticated:
+            return AdminAssignment.objects.none()
+            
         queryset = AdminAssignment.objects.all()
 
         # Superadmins can see all admin assignments
-        if user.role == 'superadmin':
+        if hasattr(user, 'role') and user.role == 'superadmin':
             return queryset
 
         # Admins can see assignments in their organization
-        if hasattr(user, 'admin'):
+        if hasattr(user, 'admin') and hasattr(user.admin, 'organization'):
             return queryset.filter(organization=user.admin.organization)
 
         return AdminAssignment.objects.none()
