@@ -36,29 +36,39 @@ const transformUserToUserWithDetails = (user: any): UserWithDetails => {
     organization: {
       id: m.organization?.id || '',
       name: m.organization?.name || 'Unknown Organization',
-      is_active: m.organization?.is_active ?? false,
-      created_at: m.organization?.created_at || new Date().toISOString(),
-      updated_at: m.organization?.updated_at || new Date().toISOString(),
-      member_count: m.organization?.member_count || 0,
       email: m.organization?.email || '',
       phone: m.organization?.phone || '',
+      is_active: m.organization?.is_active ?? true,
+      member_count: m.organization?.member_count || 0,
+      created_at: m.organization?.created_at || new Date().toISOString(),
+      updated_at: m.organization?.updated_at || new Date().toISOString(),
+      organization_roles: m.organization?.organization_roles || [],
       created_by: m.organization?.created_by || ''
     },
     added_by: m.added_by || undefined,
     last_updated: m.last_updated || new Date().toISOString()
   }));
 
+  const now = new Date().toISOString();
+  
   return {
-    ...user,
-    organization_memberships: orgMemberships,
+    id: user.id || '',
+    username: user.username || user.email?.split('@')[0] || `user_${Date.now()}`,
+    email: user.email || '',
+    first_name: user.first_name || '',
+    last_name: user.last_name || '',
     role: user.role || 'user',
     is_active: user.is_active ?? true,
     is_staff: user.is_staff ?? false,
     is_superuser: user.is_superuser ?? false,
-    date_joined: user.date_joined || new Date().toISOString(),
     last_login: user.last_login || null,
-    created_at: user.created_at || new Date().toISOString(),
-    updated_at: user.updated_at || new Date().toISOString()
+    date_joined: user.date_joined || now,
+    created_at: user.created_at || now,
+    updated_at: user.updated_at || now,
+    organization_memberships: orgMemberships,
+    phone_number: user.phone_number || '',
+    profile_picture: user.profile_picture,
+    bio: user.bio
   };
 };
 
@@ -68,6 +78,7 @@ const GLOBAL_ROLES = [
 ];
 
 interface NewUserData {
+  username: string;
   email: string;
   first_name: string;
   last_name: string;
@@ -94,7 +105,8 @@ export default function SuperAdminUsersPage() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [showOrgSelect, setShowOrgSelect] = useState(false);
-  const [newUser, setNewUser] = useState<Omit<NewUserData, 'is_active'>>({
+  const [newUser, setNewUser] = useState<NewUserData>({
+    username: '',
     email: '',
     first_name: '',
     last_name: '',
@@ -137,43 +149,79 @@ export default function SuperAdminUsersPage() {
     setIsSubmitting(true);
     setCreateError('');
 
-    // Prepare user data based on role
-    const userData = { 
-      email: newUser.email,
-      first_name: newUser.first_name,
-      last_name: newUser.last_name,
-      role: newUser.role,
-      password: newUser.password,
-      is_active: true
-    };
+    // Validate required fields
+    if (!newUser.email || !newUser.password || !newUser.username) {
+      setCreateError('Email, password, and username are required');
+      setIsSubmitting(false);
+      return;
+    }
 
     try {
-      const response = await apiPost<any>('users/', userData);
-      const newUserWithDetails = transformUserToUserWithDetails(response);
-      setUsers([...users, newUserWithDetails]);
+      // Prepare user data
+      const userData = { 
+        username: newUser.username,
+        email: newUser.email,
+        first_name: newUser.first_name || '',
+        last_name: newUser.last_name || '',
+        role: newUser.role,
+        password: newUser.password,
+        is_active: true,
+        send_invite: true
+      };
+
+      // Make API call to register endpoint
+      const response = await apiPost<any>('users/register/', userData);
+      
+      // Transform the response data to match UserWithDetails type
+      const newUserWithDetails = transformUserToUserWithDetails(response.data);
+      
+      // Add the new user to the list
+      setUsers(prevUsers => [...prevUsers, newUserWithDetails]);
+      
+      // Reset form
       setNewUser({
+        username: '',
         email: '',
         first_name: '',
         last_name: '',
         role: 'user',
         password: '',
+        organization_id: undefined,
+        send_invite: true,
+        is_active: true
       });
+      
+      // Close dialog
       setIsCreateDialogOpen(false);
     } catch (error: any) {
       console.error('Error creating user:', error);
-      setCreateError(error.response?.data?.detail || 'Failed to create user');
+      const errorMessage = error.response?.data?.detail || 
+                          error.response?.data?.message || 
+                          'Failed to create user. Please try again.';
+      setCreateError(errorMessage);
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const filteredUsers = users.filter((user: UserWithDetails) => {
+    if (!searchTerm) {
+      // If no search term, only filter by status
+      return statusFilter === 'all' || 
+             (statusFilter === 'active' && user.is_active) ||
+             (statusFilter === 'inactive' && !user.is_active);
+    }
+
     const searchLower = searchTerm.toLowerCase();
-    const matchesSearch = 
-      user.email.toLowerCase().includes(searchLower) ||
-      (user.first_name && user.first_name.toLowerCase().includes(searchLower)) ||
-      (user.last_name && user.last_name.toLowerCase().includes(searchLower));
-      
+    
+    // Safely check each field for matches
+    const emailMatch = user.email?.toLowerCase().includes(searchLower) || false;
+    const firstNameMatch = user.first_name?.toLowerCase().includes(searchLower) || false;
+    const lastNameMatch = user.last_name?.toLowerCase().includes(searchLower) || false;
+    const usernameMatch = user.username?.toLowerCase().includes(searchLower) || false;
+    
+    const matchesSearch = emailMatch || firstNameMatch || lastNameMatch || usernameMatch;
+    
     const matchesStatus = 
       statusFilter === 'all' || 
       (statusFilter === 'active' && user.is_active) ||
@@ -247,6 +295,20 @@ export default function SuperAdminUsersPage() {
             <form onSubmit={handleCreateUser}>
               <div className="grid gap-4 py-4">
                 <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="username" className="text-right">
+                    Username <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    id="username"
+                    type="text"
+                    required
+                    value={newUser.username}
+                    onChange={(e) => setNewUser({...newUser, username: e.target.value})}
+                    className="col-span-3"
+                    placeholder="johndoe"
+                  />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="email" className="text-right">
                     Email <span className="text-red-500">*</span>
                   </Label>
@@ -282,6 +344,20 @@ export default function SuperAdminUsersPage() {
                     onChange={(e) => setNewUser({...newUser, last_name: e.target.value})}
                     className="col-span-3"
                     placeholder="Doe"
+                  />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="password" className="text-right">
+                    Password <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    required
+                    value={newUser.password}
+                    onChange={(e) => setNewUser({...newUser, password: e.target.value})}
+                    className="col-span-3"
+                    placeholder="••••••••"
                   />
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
