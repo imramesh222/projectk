@@ -1,9 +1,11 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 
+
 from .views import (
     OrganizationViewSet,
-    OrganizationMemberViewSet
+    OrganizationMemberViewSet,
+    DashboardViewSet
 )
 
 # Define the application namespace
@@ -16,6 +18,9 @@ router.register(r'organization-members', OrganizationMemberViewSet, basename='or
 
 # Additional URL patterns that don't fit into ViewSets
 urlpatterns = [
+    # Dashboard endpoints
+    path('dashboard/metrics/', DashboardViewSet.as_view(), name='dashboard-metrics'),
+    
     # Include all ViewSet URLs
     path('', include(router.urls)),
     
