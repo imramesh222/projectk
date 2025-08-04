@@ -151,6 +151,7 @@ urlpatterns = [
     path('api/v1/support/', include('apps.support.urls')),
     path('api/v1/notifications/', include('apps.notifications.urls')),
     path('api/v1/billing/', include('apps.payments.urls')),
+    path('api/v1/dashboard/', include('apps.dashboard.urls')),  # Dashboard endpoints
     
     # Catch-all OPTIONS handler - must come after all other API routes
     re_path(r'^api/v1/.*$', cors_options_view),  # Catch-all for OPTIONS

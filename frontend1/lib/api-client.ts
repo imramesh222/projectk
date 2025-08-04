@@ -22,8 +22,11 @@ export class ApiError extends Error {
 // Get the auth token from localStorage if available
 const getAuthToken = (): string | null => {
   if (typeof window !== 'undefined') {
-    return localStorage.getItem('access_token');
+    const token = localStorage.getItem('access_token');
+    console.log('Retrieved token from localStorage:', token ? 'Token found' : 'No token found');
+    return token;
   }
+  console.log('getAuthToken: Not in browser environment');
   return null;
 };
 
@@ -37,14 +40,26 @@ export async function apiClient<T>(
   const token = options.token || getAuthToken();
   const { headers: customHeaders, ...fetchOptions } = options;
   
+  console.log('API Request Config:', {
+    endpoint,
+    method,
+    hasToken: !!token,
+    tokenLength: token ? token.length : 0,
+    customHeaders: Object.keys(customHeaders || {})
+  });
+  
+  const headers = {
+    'Content-Type': 'application/json',
+    ...(token && { 'Authorization': `Bearer ${token}` }),
+    ...customHeaders,
+  };
+  
+  console.log('Request Headers:', JSON.stringify(headers, null, 2));
+  
   const config: RequestInit = {
     method,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token && { 'Authorization': `Bearer ${token}` }),
-      ...customHeaders,
-    },
-    credentials: 'include', // Include cookies if needed
+    headers,
+    credentials: 'include',
     ...fetchOptions,
   };
 

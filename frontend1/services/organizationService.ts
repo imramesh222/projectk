@@ -22,6 +22,37 @@ export interface ProjectStatus {
   color: string;
 }
 
+// API Response Types
+interface ApiRecentActivity {
+  type: 'user_signup' | 'project_update' | 'billing' | 'meeting';
+  user: {
+    id: string;
+    email: string;
+    name: string;
+  };
+  timestamp: string;
+  message: string;
+}
+
+interface ApiDashboardResponse {
+  metrics: {
+    total_organizations: number;
+    total_members: number;
+    active_projects: number;
+    monthly_revenue: number;
+    team_productivity: number;
+    member_growth: number;
+    project_completion_rate: number;
+  };
+  member_activity: MemberActivity[];
+  project_status: Array<{
+    name: string;
+    count: number;
+    color?: string;
+  }>;
+  recent_activities: ApiRecentActivity[];
+}
+
 export interface RecentActivity {
   id: number;
   action: string;
@@ -34,36 +65,14 @@ export interface RecentActivity {
 export const fetchDashboardData = async () => {
   console.log('Fetching dashboard data...');
   try {
-    const endpoint = 'org/dashboard/metrics';
-    console.log('Making request to:', endpoint);
-    const response = await apiGet<{
-      metrics: {
-        total_organizations: number;
-        total_members: number;
-        active_projects: number;
-        monthly_revenue: number;
-        team_productivity: number;
-        member_growth: number;
-        project_completion_rate: number;
-      };
-      member_activity: Array<{
-        month: string;
-        active: number;
-        new: number;
-      }>;
-      project_status: Array<{
-        name: string;
-        count: number;
-        color?: string;
-      }>;
-      recent_activities: Array<{
-        id: number;
-        action: string;
-        user: string;
-        time: string;
-        type: 'member' | 'project' | 'billing' | 'meeting';
-      }>;
-    }>('org/dashboard/metrics');
+    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+    if (!token) {
+      console.error('No authentication token found');
+      throw new Error('Authentication required');
+    }
+    
+    const endpoint = 'dashboard/superadmin/overview/';
+    const response = await apiGet<ApiDashboardResponse>(endpoint);
 
     // Transform the response to match our frontend types
     return {
@@ -81,7 +90,32 @@ export const fetchDashboardData = async () => {
         value: status.count,
         color: status.color || getStatusColor(status.name)
       })),
-      recentActivities: response.recent_activities
+      recentActivities: response.recent_activities.map(activity => {
+        let activityType: 'member' | 'project' | 'billing' | 'meeting';
+        
+        switch (activity.type) {
+          case 'user_signup':
+            activityType = 'member';
+            break;
+          case 'project_update':
+            activityType = 'project';
+            break;
+          case 'billing':
+          case 'meeting':
+            activityType = activity.type;
+            break;
+          default:
+            activityType = 'member'; // Default fallback
+        }
+        
+        return {
+          id: parseInt(activity.user.id, 10) || 0,
+          action: activity.message,
+          user: activity.user.name,
+          time: activity.timestamp,
+          type: activityType
+        };
+      })
     };
   } catch (error) {
     console.error('Error fetching dashboard data:', error);

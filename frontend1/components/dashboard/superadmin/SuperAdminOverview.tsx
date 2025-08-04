@@ -79,24 +79,45 @@ export function SuperAdminOverview() {
   useEffect(() => {
     const loadData = async () => {
       try {
+        console.log('Starting to load dashboard data...');
         setIsLoading(true);
         setError(null);
         
         // Fetch all dashboard data in a single request
+        console.log('Calling fetchDashboardData()...');
         const data = await fetchDashboardData();
+        
+        console.log('Received dashboard data:', JSON.stringify(data, null, 2));
         
         setDashboardData({
           metrics: data.metrics,
-          memberActivity: data.memberActivity,
-          projectStatus: data.projectStatus,
-          recentActivities: data.recentActivities
+          memberActivity: data.memberActivity || [],
+          projectStatus: data.projectStatus || [],
+          recentActivities: data.recentActivities || []
         });
-      } catch (err) {
+        
+        console.log('Dashboard data state updated');
+      } catch (error) {
+        const err = error as Error & { response?: any };
         console.error('Error loading dashboard data:', err);
+        
+        const errorDetails = {
+          name: err.name,
+          message: err.message,
+          stack: err.stack,
+          response: err.response ? {
+            status: err.response.status,
+            statusText: err.response.statusText,
+            data: err.response.data
+          } : 'No response data'
+        };
+        
+        console.error('Error details:', errorDetails);
+        
         setError('Failed to load dashboard data. Please try again later.');
         toast({
           title: 'Error',
-          description: 'Failed to load dashboard data.',
+          description: `Failed to load dashboard data: ${err.message || 'Unknown error'}`,
           variant: 'destructive',
         });
       } finally {
