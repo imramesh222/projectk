@@ -13,7 +13,54 @@ import { Search, Download, Filter, UserPlus, User, ChevronDown } from 'lucide-re
 
 import { columns } from './columns';
 import { apiGet, apiPost } from '@/lib/api-client';
-import { User as UserType, Organization } from '@/types';
+import { UserWithDetails, Organization, OrganizationRole } from '@/types';
+
+// Helper function to transform API response to UserWithDetails
+const transformUserToUserWithDetails = (user: any): UserWithDetails => {
+  // Transform organization memberships to match the expected type
+  const orgMemberships = (user.organization_memberships || []).map((m: any) => ({
+    id: m.id,
+    is_active: m.is_active ?? true,
+    joined_at: m.joined_at || new Date().toISOString(),
+    roles: Array.isArray(m.roles) 
+      ? m.roles.map((r: any) => ({
+          id: typeof r === 'string' ? r : r.id || r.name,
+          name: typeof r === 'string' ? r : r.name || r.id,
+          permissions: [],
+          organization: m.organization?.id || '',
+          is_default: false,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }))
+      : [],
+    organization: {
+      id: m.organization?.id || '',
+      name: m.organization?.name || 'Unknown Organization',
+      is_active: m.organization?.is_active ?? false,
+      created_at: m.organization?.created_at || new Date().toISOString(),
+      updated_at: m.organization?.updated_at || new Date().toISOString(),
+      member_count: m.organization?.member_count || 0,
+      email: m.organization?.email || '',
+      phone: m.organization?.phone || '',
+      created_by: m.organization?.created_by || ''
+    },
+    added_by: m.added_by || undefined,
+    last_updated: m.last_updated || new Date().toISOString()
+  }));
+
+  return {
+    ...user,
+    organization_memberships: orgMemberships,
+    role: user.role || 'user',
+    is_active: user.is_active ?? true,
+    is_staff: user.is_staff ?? false,
+    is_superuser: user.is_superuser ?? false,
+    date_joined: user.date_joined || new Date().toISOString(),
+    last_login: user.last_login || null,
+    created_at: user.created_at || new Date().toISOString(),
+    updated_at: user.updated_at || new Date().toISOString()
+  };
+};
 
 const GLOBAL_ROLES = [
   { value: 'superadmin', label: 'Super Admin' },
@@ -24,13 +71,22 @@ interface NewUserData {
   email: string;
   first_name: string;
   last_name: string;
-  role: 'superadmin' | 'admin' | 'user';
+  role: 'user' | 'admin' | 'superadmin';
+  password: string;
   organization_id?: string;
   send_invite: boolean;
+  is_active?: boolean;
 }
 
+const handleRoleChange = (value: string) => {
+  setNewUser(prev => ({
+    ...prev,
+    role: value as NewUserData['role']
+  }));
+};
+
 export default function SuperAdminUsersPage() {
-  const [users, setUsers] = useState<UserType[]>([]);
+  const [users, setUsers] = useState<UserWithDetails[]>([]);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -38,45 +94,37 @@ export default function SuperAdminUsersPage() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [showOrgSelect, setShowOrgSelect] = useState(false);
-  const [newUser, setNewUser] = useState<NewUserData>({
+  const [newUser, setNewUser] = useState<Omit<NewUserData, 'is_active'>>({
     email: '',
     first_name: '',
     last_name: '',
     role: 'user',
+    password: '',
+    organization_id: undefined,
     send_invite: true,
+    is_active: true
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
+  const fetchUsers = async () => {
+    try {
+      const response = await apiGet<any>('users/');
+      // Ensure we're working with an array
+      const usersData = Array.isArray(response) ? response : response?.results || [];
+      // Transform each user to ensure it matches UserWithDetails type
+      const transformedUsers = usersData.map(transformUserToUserWithDetails);
+      setUsers(transformedUsers);
+    } catch (error) {
+      console.error('Error fetching users:', error);
+      setError('Failed to load users');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        
-        // Fetch users with their organization memberships
-        const [usersResponse, orgsResponse] = await Promise.all([
-          apiGet<{results: UserType[]}>('users/'),
-          apiGet<{results: Organization[]}>('org/organizations/')
-        ]);
-
-        if (usersResponse?.results) {
-          setUsers(usersResponse.results);
-        } else {
-          setUsers([]);
-        }
-
-        if (orgsResponse?.results) {
-          setOrganizations(orgsResponse.results);
-        }
-      } catch (err) {
-        console.error('Error fetching data:', err);
-        setError('Failed to load data. Please try again later.');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
+    fetchUsers();
   }, []);
 
   // Organization selection is not needed for global roles
@@ -87,38 +135,39 @@ export default function SuperAdminUsersPage() {
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
-    setCreateError(null);
+    setCreateError('');
 
     // Prepare user data based on role
-    const userData = { ...newUser };
-    
-    // Remove organization_id for global roles
-    delete userData.organization_id;
+    const userData = { 
+      email: newUser.email,
+      first_name: newUser.first_name,
+      last_name: newUser.last_name,
+      role: newUser.role,
+      password: newUser.password,
+      is_active: true
+    };
 
     try {
-      const response = await apiPost<UserType>('users/', userData);
-      if (response) {
-        setUsers(prevUsers => [...prevUsers, response]);
-        setIsCreateDialogOpen(false);
-        // Reset form
-        setNewUser({
-          email: '',
-          first_name: '',
-          last_name: '',
-          role: 'user',
-          organization_id: undefined,
-          send_invite: true,
-        });
-      }
-    } catch (err) {
-      console.error('Error creating user:', err);
-      setCreateError(err instanceof Error ? err.message : 'Failed to create user');
+      const response = await apiPost<any>('users/', userData);
+      const newUserWithDetails = transformUserToUserWithDetails(response);
+      setUsers([...users, newUserWithDetails]);
+      setNewUser({
+        email: '',
+        first_name: '',
+        last_name: '',
+        role: 'user',
+        password: '',
+      });
+      setIsCreateDialogOpen(false);
+    } catch (error: any) {
+      console.error('Error creating user:', error);
+      setCreateError(error.response?.data?.detail || 'Failed to create user');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const filteredUsers = users.filter((user: UserType) => {
+  const filteredUsers = users.filter((user: UserWithDetails) => {
     const searchLower = searchTerm.toLowerCase();
     const matchesSearch = 
       user.email.toLowerCase().includes(searchLower) ||
@@ -338,10 +387,17 @@ export default function SuperAdminUsersPage() {
             </div>
             <TabsContent value="all" className="mt-6">
               {filteredUsers.length > 0 ? (
-                <DataTable
+                <DataTable<UserWithDetails, unknown>
                   columns={columns}
                   data={filteredUsers}
                   searchKey="email"
+                  className="[&>div:first-child]:rounded-t-md [&>div:last-child]:rounded-b-md [&>div:last-child]:border-t [&>div:last-child]:border-gray-200 dark:[&>div:last-child]:border-gray-800"
+                  headerClassName="bg-gray-50 dark:bg-gray-800/50"
+                  rowClassName={({ index }) => 
+                    index % 2 === 0 
+                      ? 'bg-white dark:bg-gray-900' 
+                      : 'bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-50 dark:hover:bg-gray-800/70'
+                  }
                 />
               ) : (
                 <div className="text-center py-12">
