@@ -16,7 +16,7 @@ export default function SuperAdminOrganizationsPage() {
     const fetchOrganizations = async () => {
       try {
         const response = await apiGet<{results: Organization[]}>('org/organizations/');
-        setOrganizations(response.results);
+        setOrganizations(response.results || []);
       } catch (err) {
         console.error('Error fetching organizations:', err);
         setError('Failed to load organizations. Please try again later.');

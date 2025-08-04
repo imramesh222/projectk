@@ -2,15 +2,18 @@
 
 import { ColumnDef } from '@tanstack/react-table';
 import { Button } from '@/components/ui/button';
-import { MoreHorizontal } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { MoreHorizontal, UserPlus, Edit, Trash2, Eye, Check, X, Clock } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import { User } from '@/types';
+import { formatDistanceToNow } from 'date-fns';
 
 type CellProps = {
   row: {
@@ -33,17 +36,63 @@ export const columns: ColumnDef<User>[] = [
     header: 'Last Name',
   },
   {
+    accessorKey: 'role',
+    header: 'Role',
+    cell: ({ row }: CellProps) => {
+      const role = row.getValue('role') as string;
+      return (
+        <Badge variant="outline" className="capitalize">
+          {role}
+        </Badge>
+      );
+    },
+  },
+  {
     accessorKey: 'is_active',
     header: 'Status',
-    cell: ({ row }: CellProps) => (
-      <div className="capitalize">
-        {row.getValue('is_active') ? 'Active' : 'Inactive'}
-      </div>
-    ),
+    cell: ({ row }: CellProps) => {
+      const isActive = row.getValue('is_active') as boolean;
+      return (
+        <Badge variant={isActive ? 'default' : 'secondary'} className="capitalize">
+          {isActive ? 'Active' : 'Inactive'}
+        </Badge>
+      );
+    },
+  },
+  {
+    accessorKey: 'last_login',
+    header: 'Last Login',
+    cell: ({ row }: CellProps) => {
+      const lastLogin = row.getValue('last_login');
+      if (!lastLogin) return 'Never';
+      
+      const date = new Date(lastLogin as string);
+      return formatDistanceToNow(date, { addSuffix: true });
+    },
+  },
+  {
+    accessorKey: 'organization',
+    header: 'Organization',
+    cell: ({ row }: CellProps) => {
+      const org = row.original.organization_memberships?.[0]?.organization?.name;
+      return org || '—';
+    },
+  },
+  {
+    accessorKey: 'organization_role',
+    header: 'Org Role',
+    cell: ({ row }: CellProps) => {
+      const role = row.original.organization_memberships?.[0]?.role;
+      return role ? (
+        <Badge variant="outline" className="capitalize">
+          {role}
+        </Badge>
+      ) : '—';
+    },
   },
   {
     accessorKey: 'date_joined',
-    header: 'Date Joined',
+    header: 'Member Since',
     cell: ({ row }: CellProps) => {
       const date = new Date(row.getValue('date_joined'));
       return date.toLocaleDateString();
