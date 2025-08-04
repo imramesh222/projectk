@@ -6,6 +6,7 @@ from rest_framework_simplejwt.views import (
     TokenVerifyView,
 )
 from .views import UserRegisterView, UserRoleUpdateView, UserViewSet
+from .serializers import CustomTokenObtainPairSerializer
 
 # Define the application namespace
 app_name = 'users'
@@ -20,7 +21,7 @@ urlpatterns = [
     path('register/', UserRegisterView.as_view(), name='user-register'),
     
     # JWT Authentication endpoints
-    path('token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('token/', TokenObtainPairView.as_view(serializer_class=CustomTokenObtainPairSerializer), name='token_obtain_pair'),
     path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('token/verify/', TokenVerifyView.as_view(), name='token_verify'),
     

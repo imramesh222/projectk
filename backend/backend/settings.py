@@ -11,10 +11,20 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-0eiji9!8!q6p#lics3m2qz&%$02*x468b$18ajyj&3p-^v8!@k')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv('DEBUG', 'False') == 'True'
+DEBUG = os.getenv('DEBUG', 'True') == 'True'
 
-# ALLOWED_HOSTS = ['*']
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', '192.168.101.8']
+# Allow all hosts in development
+ALLOWED_HOSTS = ['*']
+
+# Disable HTTPS redirection in development
+SECURE_SSL_REDIRECT = False
+SECURE_PROXY_SSL_HEADER = None
+SESSION_COOKIE_SECURE = False
+CSRF_COOKIE_SECURE = False
+
+# CORS settings
+CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_CREDENTIALS = True
 
 
 
@@ -38,6 +48,7 @@ INSTALLED_APPS = [
     'apps.tasks',
     'apps.support',
     'apps.notifications',
+    'apps.dashboard',
 ]
 
 MIDDLEWARE = [
