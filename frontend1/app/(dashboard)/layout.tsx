@@ -4,6 +4,8 @@ import { RoleBasedLayout } from '@/components/dashboard/RoleBasedLayout';
 import { getCurrentUserWithFallback, isAuthenticated, UserRole } from '@/lib/auth';
 import { useRouter, usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { ToastProvider } from '@/hooks/use-toast';
+import { Toaster } from '@/components/ui/toaster';
 
 // Debug logging helper
 const debug = (message: string, data?: any) => {
@@ -125,7 +127,12 @@ export default function DashboardLayout({
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <RoleBasedLayout>{children}</RoleBasedLayout>
+      <ToastProvider>
+        <RoleBasedLayout>
+          {children}
+        </RoleBasedLayout>
+        <Toaster />
+      </ToastProvider>
     </div>
   );
 }

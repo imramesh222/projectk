@@ -3,6 +3,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.utils import timezone
 from datetime import timedelta
+from apps.organization.models import OrganizationMember, OrganizationRoleChoices
 from django.db.models import Count, Q
 
 from apps.users.permissions import IsSuperAdmin, IsOrganizationAdmin
@@ -108,12 +109,13 @@ class OrganizationAdminDashboardView(APIView):
         try:
             org_membership = OrganizationMember.objects.get(
                 user=request.user,
-                role=OrganizationMember.Role.ADMIN
+                role=OrganizationRoleChoices.ADMIN,
+                is_active=True
             )
             organization = org_membership.organization
         except OrganizationMember.DoesNotExist:
             return Response(
-                {"error": "You are not an admin of any organization"},
+                {"error": "You are not an active admin of any organization"},
                 status=403
             )
         

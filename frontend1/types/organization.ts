@@ -64,6 +64,9 @@ export interface OrganizationMetrics {
   overdueInvoices: number;
   storageUsage: number;
   storageLimit: number;
+  teamProductivity?: number;
+  memberGrowth?: number;
+  projectCompletionRate?: number;
   memberActivity: Array<{
     date: string;
     active: number;

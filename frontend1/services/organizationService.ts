@@ -9,6 +9,36 @@ import {
   OrganizationRole
 } from '@/types/organization';
 
+// Type for the superadmin dashboard response
+interface SuperadminDashboardResponse {
+  metrics: {
+    total_organizations: number;
+    total_members: number;
+    active_projects: number;
+    monthly_revenue: number;
+    team_productivity: number;
+    member_growth: number;
+    project_completion_rate: number;
+  };
+  member_activity: Array<{
+    month: string;
+    active: number;
+    new: number;
+  }>;
+  project_status: Array<{
+    status: string;
+    count: number;
+    color?: string;
+  }>;
+  recent_activities: Array<{
+    id: number;
+    action: string;
+    user: string;
+    time: string;
+    type: string;
+  }>;
+}
+
 // Project status type is now imported from OrganizationProject
 
 // Define valid status types
@@ -360,62 +390,62 @@ const getStatusColor = (status: string): string => {
 };
 
 // Helper function to map API response to OrganizationDashboardData
-const mapDashboardResponse = (response: ApiDashboardResponse): OrganizationDashboardData => {
-  if (!response?.metrics) {
+const mapDashboardResponse = (response: any): OrganizationDashboardData => {
+  if (!response) {
     throw new Error('Invalid dashboard response');
   }
 
   const { 
-    metrics, 
+    metrics = {}, 
     recent_activities = [], 
-    projects = [], 
-    upcoming_deadlines = [], 
-    team_members = [] 
+    member_activity = [],
+    project_status = []
   } = response;
 
-  // Map metrics with null checks
-  const safeMetrics = metrics || {};
   // Map member activity with null checks
-  const memberActivity = (safeMetrics.member_activity || []).map(activity => ({
+  const memberActivity: MemberActivity[] = (member_activity || []).map((activity: any) => ({
     date: activity?.date || new Date().toISOString(),
     active: activity?.active || 0,
     new: activity?.new || 0
   }));
 
   // Map project status with null checks
-  const projectStatus = (safeMetrics.project_status || []).map(status => ({
+  const projectStatus = (project_status || []).map((status: any) => ({
     status: status?.status || 'unknown',
     count: status?.count || 0,
     color: status?.color || getStatusColor(status?.status || 'unknown')
   }));
 
   const dashboardMetrics: OrganizationMetrics = {
-    totalMembers: safeMetrics.total_members || 0,
-    activeMembers: safeMetrics.active_members || 0,
-    totalProjects: safeMetrics.total_projects || 0,
-    activeProjects: safeMetrics.active_projects || 0,
-    pendingTasks: safeMetrics.pending_tasks || 0,
-    completedTasks: safeMetrics.completed_tasks || 0,
-    monthlyRevenue: safeMetrics.monthly_revenue || 0,
-    totalRevenue: safeMetrics.total_revenue || 0,
-    pendingInvoices: safeMetrics.pending_invoices || 0,
-    overdueInvoices: safeMetrics.overdue_invoices || 0,
-    storageUsage: safeMetrics.storage_usage || 0,
-    storageLimit: safeMetrics.storage_limit || 0,
+    totalMembers: metrics?.total_members || 0,
+    activeMembers: metrics?.active_members || 0,
+    totalProjects: metrics?.total_projects || 0,
+    activeProjects: metrics?.active_projects || 0,
+    pendingTasks: metrics?.pending_tasks || 0,
+    completedTasks: metrics?.completed_tasks || 0,
+    monthlyRevenue: metrics?.monthly_revenue || 0,
+    totalRevenue: 0, // Not provided in backend response
+    pendingInvoices: metrics?.pending_invoices || 0,
+    overdueInvoices: metrics?.overdue_invoices || 0,
+    storageUsage: metrics?.storage_usage || 0,
+    storageLimit: metrics?.storage_limit || 0,
     memberActivity,
-    projectStatus
+    projectStatus,
+    teamProductivity: 0, // Not provided in backend response
+    memberGrowth: 0, // Not provided in backend response
+    projectCompletionRate: 0 // Not provided in backend response
   };
 
   // Map recent activities with null checks and proper typing
-  const recentActivities: OrganizationActivity[] = (recent_activities || []).map(activity => {
+  const recentActivities: OrganizationActivity[] = (recent_activities || []).map((activity: any) => {
     // Ensure type is one of the allowed ActivityType values
-    const activityType = (['member', 'project', 'billing', 'meeting', 'system'] as const)
+    const activityType = (['member', 'project', 'billing', 'meeting', 'system', 'task', 'milestone'] as const)
       .includes(activity?.type as any)
       ? activity.type as ActivityType
       : 'system';
       
     return {
-      id: activity?.id || '',
+      id: activity?.id?.toString() || '',
       type: activityType,
       action: activity?.action || '',
       timestamp: activity?.timestamp || new Date().toISOString(),
@@ -424,74 +454,13 @@ const mapDashboardResponse = (response: ApiDashboardResponse): OrganizationDashb
     };
   });
 
-  // Map projects with null checks and proper type casting
-  const mappedProjects: OrganizationProject[] = (projects || []).map(project => {
-    // Safely handle project status with type checking
-    const status: OrganizationProject['status'] = project?.status && 
-      ['completed', 'cancelled', 'on_hold', 'in_progress', 'planning'].includes(project.status)
-        ? project.status as OrganizationProject['status']
-        : 'planning';
-
-    // Map project members with proper typing
-    const projectMembers = (project?.members || []).map(member => ({
-      id: member?.id || '',
-      name: member?.name || 'Unknown Member',
-      role: (member?.role as OrganizationRole) || 'member',
-      avatar: member?.avatar || undefined
-    }));
-
-    // Return the properly typed project object
-    return {
-      id: project?.id || '',
-      name: project?.name || 'Unnamed Project',
-      description: project?.description || '',
-      status,
-      progress: project?.progress || 0,
-      startDate: project?.start_date || '',
-      dueDate: project?.due_date || '',
-      members: projectMembers,
-      budget: project?.budget || 0,
-      spent: project?.spent || 0
-    };
-  });
-
-  // Map upcoming deadlines with null checks
-  const upcomingDeadlines = (upcoming_deadlines || []).map(deadline => ({
-    id: deadline?.id || '',
-    title: deadline?.title || 'Untitled Deadline',
-    dueDate: deadline?.due_date || '',
-    projectId: deadline?.project_id || '',
-    projectName: deadline?.project_name || 'Unknown Project',
-    type: (deadline?.type as any) || 'task',
-    status: (deadline?.status as any) || 'pending'
-  }));
-
-  // Map team members with null checks
-  const teamMembers = (team_members || []).map(member => ({
-    id: member?.id || '',
-    name: member?.name || 'Unknown User',
-    email: member?.email || '',
-    role: member?.role || 'member',
-    avatar: member?.avatar,
-    lastActive: member?.last_active || new Date().toISOString(),
-    status: (['online', 'offline', 'away'].includes(member?.status || '') 
-      ? member?.status 
-      : 'offline') as 'online' | 'offline' | 'away',
-    currentTask: member?.current_task ? {
-      id: member.current_task.id || '',
-      title: member.current_task.title || '',
-      projectId: member.current_task.project_id || '',
-      projectName: member.current_task.project_name || ''
-    } : undefined
-  }));
-
-  // Return the mapped dashboard data
+  // Return the mapped dashboard data with default values for missing fields
   const dashboardData: OrganizationDashboardData = {
     metrics: dashboardMetrics,
     recentActivities,
-    projects: mappedProjects,
-    upcomingDeadlines,
-    teamMembers
+    projects: [], // Not provided in backend response
+    upcomingDeadlines: [], // Not provided in backend response
+    teamMembers: [] // Not provided in backend response
   };
 
   return dashboardData;
@@ -500,8 +469,34 @@ const mapDashboardResponse = (response: ApiDashboardResponse): OrganizationDashb
 // Fetch all dashboard data for organization admin
 export const fetchOrganizationAdminDashboard = async (orgId: string): Promise<OrganizationDashboardData> => {
   try {
-    const response = await apiGet<ApiDashboardResponse>(`/dashboard/organization/${orgId}/`);
-    return mapDashboardResponse(response);
+    // Use the correct endpoint for organization admin dashboard
+    const response = await apiGet<any>('/org/dashboard/admin/overview/');
+    
+    // The response should be the data object directly
+    const data = response.data || response;
+    
+    // Map the response to the expected format
+    const mappedData = {
+      metrics: {
+        ...data.metrics,
+        // Map any additional metrics that might be in a different format
+        totalMembers: data.metrics?.total_members || 0,
+        activeMembers: data.metrics?.active_members || 0,
+        totalProjects: data.metrics?.total_projects || 0,
+        activeProjects: data.metrics?.active_projects || 0,
+        monthlyRevenue: data.metrics?.monthly_revenue || 0,
+        teamProductivity: data.metrics?.team_productivity || 0,
+        memberGrowth: data.metrics?.member_growth || 0,
+        projectCompletionRate: data.metrics?.project_completion_rate || 0,
+        // Add any other metrics that might be needed
+      },
+      recent_activities: data.recent_activities || [],
+      member_activity: data.member_activity || [],
+      project_status: data.project_status || [],
+      // Add any other data that might be needed
+    };
+    
+    return mapDashboardResponse(mappedData);
   } catch (error) {
     console.error('Error fetching organization dashboard data:', error);
     // Return a default dashboard data structure on error to prevent UI crashes
@@ -527,7 +522,7 @@ export const fetchOrganizationAdminDashboard = async (orgId: string): Promise<Or
       recentActivities: [],
       projects: [],
       upcomingDeadlines: [],
-      teamMembers: [] // Add the missing teamMembers property
+      teamMembers: []
     };
   }
 };
@@ -565,7 +560,8 @@ const mapRecentActivities = (activities: ApiRecentActivity[] = []): Organization
  */
 export const fetchOrganizationDetails = async (orgId: string): Promise<Organization> => {
   try {
-    const response = await apiGet<Organization>(`/organizations/${orgId}/`);
+    // Updated endpoint to match the backend API
+    const response = await apiGet<Organization>(`/org/organizations/${orgId}/`);
     return response;
   } catch (error) {
     console.error('Error fetching organization details:', error);
@@ -576,7 +572,9 @@ export const fetchOrganizationDetails = async (orgId: string): Promise<Organizat
       slug: 'organization',
       is_active: true,
       created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
+      members_count: 0,
+      projects_count: 0
     };
   }
 };
@@ -605,16 +603,117 @@ const mapTeamMembers = (members: ApiTeamMember[] = []): TeamMember[] => {
     role: (member.role || 'member') as OrganizationRole,
     avatar: member.avatar,
     lastActive: member.last_active || new Date().toISOString(),
-    status: (['online', 'offline', 'away', 'busy', 'inactive'].includes(member.status) 
-      ? member.status 
-      : 'inactive') as 'online' | 'offline' | 'away' | 'busy' | 'inactive',
-    ...(member.current_task && {
-      currentTask: {
-        id: member.current_task.id,
-        title: member.current_task.title,
-        projectId: member.current_task.project_id,
-        projectName: member.current_task.project_name
-      }
-    })
+    status: member.status,
+    currentTask: member.current_task ? {
+      id: member.current_task.id,
+      title: member.current_task.title,
+      projectId: member.current_task.project_id,
+      projectName: member.current_task.project_name
+    } : undefined
   }));
+};
+
+/**
+ * Fetches dashboard data for superadmin
+ */
+export const fetchDashboardData = async (): Promise<OrganizationDashboardData> => {
+  try {
+    console.log('Fetching superadmin dashboard data...');
+    const response = await apiGet<SuperadminDashboardResponse>('/org/dashboard/metrics/');
+    console.log('Raw dashboard response:', response);
+    
+    // Use the response directly as it's already typed as SuperadminDashboardResponse
+    const data = response;
+    
+    // Map member activity
+    const memberActivity: MemberActivity[] = (data.member_activity || []).map((item: { month: string; active?: number; new?: number }) => ({
+      date: item.month,
+      active: item.active || 0,
+      new: item.new || 0
+    }));
+    
+    // Map project status
+    const projectStatus = (data.project_status || []).map((item: { status: string; count?: number; color?: string }) => ({
+      status: item.status,
+      count: item.count || 0,
+      color: item.color || getStatusColor(item.status)
+    }));
+    
+    // Map recent activities
+    const recentActivities: OrganizationActivity[] = (data.recent_activities || []).map(activity => {
+      // Ensure the activity has a valid type
+      const activityType: ActivityType = 
+        activity.type && ['member', 'project', 'billing', 'meeting', 'system'].includes(activity.type)
+          ? activity.type as ActivityType
+          : 'system';
+          
+      return {
+        id: activity.id.toString(),
+        type: activityType,
+        action: activity.action,
+        timestamp: new Date().toISOString(),
+        user_name: activity.user,
+        time: activity.time
+      };
+    });
+    
+    // Create the dashboard data object
+    const dashboardData: OrganizationDashboardData = {
+      metrics: {
+        totalMembers: data.metrics?.total_members || 0,
+        activeMembers: 0, // Not provided in superadmin metrics
+        totalProjects: data.metrics?.active_projects || 0,
+        activeProjects: data.metrics?.active_projects || 0,
+        pendingTasks: 0, // Not provided in superadmin metrics
+        completedTasks: 0, // Not provided in superadmin metrics
+        monthlyRevenue: data.metrics?.monthly_revenue || 0,
+        totalRevenue: 0, // Not provided in superadmin metrics
+        pendingInvoices: 0, // Not provided in superadmin metrics
+        overdueInvoices: 0, // Not provided in superadmin metrics
+        storageUsage: 0, // Not provided in superadmin metrics
+        storageLimit: 0, // Not provided in superadmin metrics
+        teamProductivity: data.metrics?.team_productivity || 0,
+        memberGrowth: data.metrics?.member_growth || 0,
+        projectCompletionRate: data.metrics?.project_completion_rate || 0,
+        memberActivity,
+        projectStatus
+      },
+      recentActivities,
+      projects: [], // Not provided in superadmin dashboard
+      upcomingDeadlines: [], // Not provided in superadmin dashboard
+      teamMembers: [] // Not provided in superadmin dashboard
+    };
+    
+    console.log('Mapped dashboard data:', dashboardData);
+    return dashboardData;
+  } catch (error) {
+    console.error('Error fetching superadmin dashboard data:', error);
+    
+    // Return default data structure on error
+    return {
+      metrics: {
+        totalMembers: 0,
+        activeMembers: 0,
+        totalProjects: 0,
+        activeProjects: 0,
+        pendingTasks: 0,
+        completedTasks: 0,
+        monthlyRevenue: 0,
+        totalRevenue: 0,
+        pendingInvoices: 0,
+        overdueInvoices: 0,
+        storageUsage: 0,
+        storageLimit: 0,
+        teamProductivity: 0,
+        memberGrowth: 0,
+        projectCompletionRate: 0,
+        memberActivity: [],
+        projectStatus: []
+      },
+      recentActivities: [],
+      projects: [],
+      upcomingDeadlines: [],
+      teamMembers: []
+    };
+  }
 };

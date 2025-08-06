@@ -135,6 +135,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
     - Admins can see and manage their own organization
     - Other users can only list organizations (filtered by their access)
     """
+    from .models import OrganizationRoleChoices
     queryset = Organization.objects.all()
     serializer_class = OrganizationSerializer
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
@@ -199,17 +200,128 @@ class OrganizationViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['get'])
     def members(self, request, pk=None):
         """
-        Get all members of an organization.
+        Get all members of an organization with their roles.
         """
         organization = self.get_object()
-        members = {
-            'admins': [admin.user for admin in organization.admins.all()],
-            'salespeople': [sp.user for sp in organization.salespeople.all()],
-            'verifiers': [v.user for v in organization.verifiers.all()],
-            'project_managers': [pm.user for pm in organization.project_managers.all()],
-            'developers': [dev.user for dev in organization.developers.all()],
-            'support_staff': [s.user for s in organization.support_staff.all()],
+        members = organization.members.select_related('user').filter(is_active=True)
+        
+        # Group members by role
+        roles = {}
+        for role_choice in OrganizationRoleChoices.choices:
+            role_key = role_choice[0]
+            role_name = role_choice[1].lower() + 's'  # Convert to plural
+            roles[role_name] = [
+                {
+                    'id': str(member.user.id),
+                    'email': member.user.email,
+                    'name': f"{member.user.first_name} {member.user.last_name}".strip() or member.user.email.split('@')[0],
+                    'role': member.role,
+                    'joined_date': member.created_at.strftime('%Y-%m-%d')
+                }
+                for member in members.filter(role=role_key)
+            ]
+            
+        return Response(roles)
+        
+    @action(detail=True, methods=['get'])
+    def dashboard(self, request, pk=None):
+        """
+        Get dashboard metrics for an organization.
+        """
+        from django.db.models import Count, Q
+        from datetime import datetime, timedelta
+        
+        organization = self.get_object()
+        now = timezone.now()
+        one_month_ago = now - timedelta(days=30)
+        
+        # Get member statistics
+        total_members = organization.members.filter(is_active=True).count()
+        new_members_this_month = organization.members.filter(
+            created_at__gte=one_month_ago,
+            is_active=True
+        ).count()
+        
+        # Get member growth data for the last 6 months
+        monthly_member_growth = []
+        for i in range(6):
+            month = now - timedelta(days=30 * (5 - i))
+            month_start = month.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            month_end = (month_start + timedelta(days=32)).replace(day=1) - timedelta(days=1)
+            
+            new_members = organization.members.filter(
+                created_at__range=(month_start, month_end),
+                is_active=True
+            ).count()
+            
+            monthly_member_growth.append({
+                'month': month.strftime('%b %Y'),
+                'new_members': new_members,
+                'total_members': organization.members.filter(
+                    created_at__lte=month_end,
+                    is_active=True
+                ).count()
+            })
+        
+        # Get role distribution
+        role_distribution = organization.members.filter(
+            is_active=True
+        ).values('role').annotate(
+            count=Count('id')
+        ).order_by('-count')
+        
+        # Prepare response data
+        data = {
+            'stats': {
+                'total_members': total_members,
+                'new_members_this_month': new_members_this_month,
+                'member_growth_rate': round((new_members_this_month / (total_members - new_members_this_month)) * 100, 1) if total_members > new_members_this_month else 100,
+            },
+            'member_growth': monthly_member_growth,
+            'role_distribution': [
+                {'role': item['role'], 'count': item['count']}
+                for item in role_distribution
+            ],
+            'recent_activity': self._get_recent_activity(organization)
         }
+        
+        return Response(data)
+    
+    def _get_recent_activity(self, organization):
+        """Helper method to get recent activity for the organization."""
+        from django.contrib.contenttypes.models import ContentType
+        from django.utils import timezone
+        from django.db.models import Q
+        
+        thirty_days_ago = timezone.now() - timezone.timedelta(days=30)
+        
+        # Get recent member additions
+        recent_members = organization.members.filter(
+            created_at__gte=thirty_days_ago
+        ).select_related('user').order_by('-created_at')[:5]
+        
+        activities = []
+        for member in recent_members:
+            activities.append({
+                'type': 'member_added',
+                'title': f'New {member.get_role_display()} joined',
+                'description': f'{member.user.get_full_name()} joined as {member.get_role_display()}',
+                'timestamp': member.created_at,
+                'user': {
+                    'id': str(member.user.id),
+                    'name': member.user.get_full_name(),
+                    'email': member.user.email
+                }
+            })
+            
+        # Sort all activities by timestamp (newest first)
+        activities.sort(key=lambda x: x['timestamp'], reverse=True)
+        
+        # Convert datetime to string for JSON serialization
+        for activity in activities:
+            activity['timestamp'] = activity['timestamp'].isoformat()
+            
+        return activities[:10]  # Return only the 10 most recent activities
         return Response(members)
 
 

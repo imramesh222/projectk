@@ -26,20 +26,26 @@ class IsAdmin(BaseRolePermission):
 
 class IsOrganizationAdmin(permissions.BasePermission):
     """
-    Allows access only to organization admin users.
-    Users with 'admin' role in any organization are considered organization admins.
+    Allows access to:
+    1. Global superadmins (user.role == 'superadmin')
+    2. Organization admins (user has ADMIN role in any organization)
     """
     def has_permission(self, request, view):
+        from apps.organization.models import OrganizationMember, OrganizationRoleChoices
+        
+        # Allow global superadmins
+        if request.user and request.user.is_authenticated and request.user.role == 'superadmin':
+            return True
+            
+        # Check for organization admin role
         return bool(
             request.user and 
-            request.user.is_authenticated and 
-            (
-                request.user.role == 'admin' or
-                AdminAssignment.objects.filter(
-                    user=request.user,
-                    role='admin'
-                ).exists()
-            )
+            request.user.is_authenticated and
+            OrganizationMember.objects.filter(
+                user=request.user,
+                role=OrganizationRoleChoices.ADMIN,
+                is_active=True
+            ).exists()
         )
 
 

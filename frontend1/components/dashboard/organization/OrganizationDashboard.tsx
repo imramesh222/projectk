@@ -86,7 +86,7 @@ export default function OrganizationDashboard({ orgId }: OrganizationDashboardPr
           toast({
             title: 'Access Denied',
             description: 'You do not have permission to view this organization dashboard',
-            type: 'error',
+            type: 'destructive',
           });
           router.push('/dashboard');
           return;
@@ -96,7 +96,7 @@ export default function OrganizationDashboard({ orgId }: OrganizationDashboardPr
         toast({
           title: 'Error',
           description: 'Failed to load dashboard data',
-          type: 'error',
+          type: 'destructive',
         });
       } finally {
         setIsLoading(false);
