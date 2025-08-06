@@ -4,6 +4,33 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 User = get_user_model()
 
+class OrganizationMemberSerializer(serializers.Serializer):
+    """Serializer for organization membership information."""
+    organization_id = serializers.UUIDField(source='organization.id')
+    organization_name = serializers.CharField(source='organization.name')
+    role = serializers.SerializerMethodField()
+    
+    def get_role(self, obj):
+        # Check if this is an OrganizationMember instance
+        if hasattr(obj, 'role'):
+            return obj.role
+            
+        # Fallback to checking role-specific models
+        if hasattr(obj, 'admin') and obj.is_active:
+            return 'admin'
+        if hasattr(obj, 'salesperson'):
+            return 'salesperson'
+        if hasattr(obj, 'verifier'):
+            return 'verifier'
+        if hasattr(obj, 'projectmanager'):
+            return 'project_manager'
+        if hasattr(obj, 'developer'):
+            return 'developer'
+        if hasattr(obj, 'support'):
+            return 'support'
+            
+        return 'member'
+
 class UserSerializer(serializers.ModelSerializer):
     """
     Serializer for user registration and basic info.
@@ -16,15 +43,16 @@ class UserSerializer(serializers.ModelSerializer):
         help_text="Required. Must be at least 8 characters long.",
         min_length=8
     )
+    organization_memberships = serializers.SerializerMethodField()
     
     class Meta:
         model = User
         fields = [
             'id', 'username', 'email', 'first_name', 'last_name',
             'role', 'is_active', 'date_joined', 'last_login', 
-            'password'
+            'password', 'organization_memberships'
         ]
-        read_only_fields = ['id', 'date_joined', 'last_login', 'is_active']
+        read_only_fields = ['id', 'date_joined', 'last_login', 'is_active', 'organization_memberships']
         extra_kwargs = {
             'email': {
                 'required': True,
@@ -48,6 +76,12 @@ class UserSerializer(serializers.ModelSerializer):
                 'help_text': 'User role. Defaults to \'user\'. Options: user, admin, salesperson, verifier, project_manager, developer, support.'
             }
         }
+    
+    def get_organization_memberships(self, obj):
+        """Get all organization memberships for the user."""
+        from apps.organization.models import OrganizationMember
+        memberships = OrganizationMember.objects.filter(user=obj)
+        return OrganizationMemberSerializer(memberships, many=True).data
     
     def create(self, validated_data):
         """Create and return a new user with encrypted password."""

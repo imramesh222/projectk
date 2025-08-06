@@ -30,7 +30,7 @@ export interface User {
   is_superuser: boolean;
   last_login: string | null;
   date_joined: string;
-  organization_memberships: OrganizationMembership[];
+  organization_memberships: UserOrganizationMembership[];
   phone_number?: string;
   profile_picture?: string;
   bio?: string;
@@ -63,10 +63,29 @@ export interface OrganizationRole {
   updated_at: string;
 }
 
+// Base organization membership with required fields
+interface BaseOrganizationMembership {
+  id: string;
+  is_active: boolean;
+  joined_at: string;
+  added_by?: {
+    id: string;
+    email: string;
+  };
+  last_updated?: string;
+}
+
 // User organization membership with details
-export interface UserOrganizationMembership extends Omit<OrganizationMembership, 'roles'> {
-  roles: OrganizationRole[];
-  organization: Organization;
+export interface UserOrganizationMembership extends BaseOrganizationMembership {
+  // Support both string and OrganizationRole formats for roles
+  roles: string[] | OrganizationRole[] | string;
+  // Support both organization object and ID
+  organization: Organization | string;
+  organization_id?: string;
+  // Support single role format for backward compatibility
+  role?: string;
+  // Additional fields that might be present
+  organization_name?: string;
 }
 
 // User with detailed organization memberships

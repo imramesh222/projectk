@@ -2,7 +2,7 @@
 
 import './globals.css';
 import { Inter } from 'next/font/google';
-import { ToastProvider, Toaster } from '@/hooks/use-toast';
+import { ToastProvider, ToastContainer } from '@/components/ui/use-toast';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -20,7 +20,7 @@ export default function RootLayout({
       <body className={inter.className}>
         <ToastProvider>
           {children}
-          <Toaster />
+          <ToastContainer />
         </ToastProvider>
       </body>
     </html>

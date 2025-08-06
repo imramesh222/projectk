@@ -1,76 +1,293 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { 
   Users, 
   FolderOpen, 
   DollarSign, 
   TrendingUp,
-  Activity,
   Calendar,
   Clock,
-  AlertCircle
+  AlertCircle,
+  Loader2
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { fetchOrganizationAdminDashboard } from '@/services/organizationService';
+import { format } from 'date-fns';
 
-const metrics = [
-  {
-    title: 'Total Members',
-    value: '156',
-    change: '+12.5%',
-    changeType: 'positive',
-    icon: Users,
-  },
-  {
-    title: 'Active Projects',
-    value: '23',
-    change: '+8.2%',
-    changeType: 'positive',
-    icon: FolderOpen,
-  },
-  {
-    title: 'Monthly Revenue',
-    value: '$45,230',
-    change: '+15.3%',
-    changeType: 'positive',
-    icon: DollarSign,
-  },
-  {
-    title: 'Team Productivity',
-    value: '94%',
-    change: '+2.1%',
-    changeType: 'positive',
-    icon: Activity,
-  },
-];
+// Define the API response type since we're not using the one from organizationService
+type ApiDashboardMetrics = {
+  total_members: number;
+  active_members: number;
+  total_projects: number;
+  active_projects: number;
+  pending_tasks: number;
+  completed_tasks: number;
+  monthly_revenue: number;
+  total_revenue: number;
+  pending_invoices: number;
+  overdue_invoices: number;
+  storage_usage: number;
+  storage_limit: number;
+  member_activity: Array<{ date: string; active: number; new: number }>;
+  project_status: Array<{ status: string; count: number; color: string }>;
+};
 
-const memberActivityData = [
-  { month: 'Jan', active: 120, new: 15 },
-  { month: 'Feb', active: 132, new: 18 },
-  { month: 'Mar', active: 145, new: 22 },
-  { month: 'Apr', active: 151, new: 12 },
-  { month: 'May', active: 156, new: 19 },
-  { month: 'Jun', active: 156, new: 8 },
-];
+type ApiDashboardResponse = {
+  metrics: ApiDashboardMetrics;
+  recent_activities: Array<{
+    id: string;
+    action: string;
+    user_name: string;
+    timestamp: string;
+  }>;
+  projects: any[];
+  upcoming_deadlines: any[];
+  team_members: any[];
+};
 
-const projectStatusData = [
-  { name: 'Completed', value: 45, color: '#10B981' },
-  { name: 'In Progress', value: 30, color: '#3B82F6' },
-  { name: 'Planning', value: 15, color: '#F59E0B' },
-  { name: 'On Hold', value: 10, color: '#EF4444' },
-];
+// Extend the base dashboard data with any additional client-side properties
+interface DashboardData {
+  metrics: {
+    totalMembers: number;
+    activeMembers: number;
+    totalProjects: number;
+    activeProjects: number;
+    pendingTasks: number;
+    completedTasks: number;
+    monthlyRevenue: number;
+    totalRevenue: number;
+    pendingInvoices: number;
+    overdueInvoices: number;
+    storageUsage: number;
+    storageLimit: number;
+    memberActivity: Array<{ date: string; active: number; new: number }>;
+    projectStatus: Array<{ status: string; count: number; color: string }>;
+  };
+  recentActivities: Array<{
+    id: string;
+    action: string;
+    userName: string;
+    timestamp: string;
+    user: string;
+    time: string;
+  }>;
+  projects: any[];
+  upcomingDeadlines: any[];
+  memberActivity: Array<{ date: string; active: number; new: number }>;
+  teamMembers: any[];
+}
 
-const recentActivities = [
-  { id: 1, action: 'New member joined', user: 'Sarah Wilson', time: '5 minutes ago', type: 'member' },
-  { id: 2, action: 'Project milestone completed', user: 'Mobile App v2.0', time: '1 hour ago', type: 'project' },
-  { id: 3, action: 'Invoice generated', user: '$12,500', time: '2 hours ago', type: 'billing' },
-  { id: 4, action: 'Team meeting scheduled', user: 'Weekly Standup', time: '3 hours ago', type: 'meeting' },
-  { id: 5, action: 'New project created', user: 'E-commerce Platform', time: '5 hours ago', type: 'project' },
-];
+interface MetricCardProps {
+  title: string;
+  value: string | number;
+  change?: string;
+  changeType?: 'positive' | 'negative' | 'neutral';
+  icon: React.ElementType;
+  loading?: boolean;
+}
 
-export function AdminOverview() {
+
+
+const MetricCard: React.FC<MetricCardProps> = ({ 
+  title, 
+  value, 
+  change, 
+  changeType = 'neutral', 
+  icon: Icon, 
+  loading = false 
+}) => (
+  <Card className="hover:shadow-lg transition-shadow duration-200">
+    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+      <CardTitle className="text-sm font-medium text-gray-600">
+        {title}
+      </CardTitle>
+      <Icon className="h-4 w-4 text-gray-400" />
+    </CardHeader>
+    <CardContent>
+      {loading ? (
+        <div className="h-8 flex items-center">
+          <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+        </div>
+      ) : (
+        <>
+          <div className="text-2xl font-bold text-gray-900">{value}</div>
+          {change && (
+            <p className={`text-xs flex items-center mt-1 ${
+              changeType === 'positive' ? 'text-green-600' : 
+              changeType === 'negative' ? 'text-red-600' : 'text-gray-500'
+            }`}>
+              <TrendingUp className={`h-3 w-3 mr-1 ${
+                changeType === 'positive' ? 'text-green-600' : 
+                changeType === 'negative' ? 'text-red-600' : 'text-gray-500'
+              }`} />
+              {change}
+            </p>
+          )}
+        </>
+      )}
+    </CardContent>
+  </Card>
+);
+
+interface AdminOverviewProps {
+  orgId: string;
+}
+
+export const AdminOverview: React.FC<AdminOverviewProps> = ({ orgId }) => {
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+  const [dashboardData, setDashboardData] = useState<DashboardData>({
+    metrics: {
+      totalMembers: 0,
+      activeMembers: 0,
+      totalProjects: 0,
+      activeProjects: 0,
+      pendingTasks: 0,
+      completedTasks: 0,
+      monthlyRevenue: 0,
+      totalRevenue: 0,
+      pendingInvoices: 0,
+      overdueInvoices: 0,
+      storageUsage: 0,
+      storageLimit: 0,
+      memberActivity: [],
+      projectStatus: []
+    },
+    recentActivities: [],
+    projects: [],
+    upcomingDeadlines: [],
+    memberActivity: [],
+    teamMembers: []
+  });
+
+  const { metrics } = dashboardData;
+
+  const getChangePercentage = (current: number, previous: number): string => {
+    if (previous === 0) return '0%';
+    const change = ((current - previous) / previous) * 100;
+    return `${change >= 0 ? '+' : ''}${change.toFixed(1)}%`;
+  };
+
+  const metricCards: Array<{
+    title: string;
+    value: string | number;
+    icon: React.ElementType;
+    change: string;
+    changeType: 'positive' | 'negative' | 'neutral';
+  }> = [
+    {
+      title: 'Total Members',
+      value: metrics.totalMembers,
+      icon: Users,
+      change: getChangePercentage(metrics.totalMembers, Math.max(0, metrics.totalMembers - 5)),
+      changeType: 'positive',
+    },
+    {
+      title: 'Active Projects',
+      value: metrics.activeProjects,
+      icon: FolderOpen,
+      change: getChangePercentage(metrics.activeProjects, Math.max(0, metrics.activeProjects - 2)),
+      changeType: metrics.activeProjects > 0 ? 'positive' : 'neutral',
+    },
+    {
+      title: 'Monthly Revenue',
+      value: new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(metrics.monthlyRevenue || 0),
+      icon: DollarSign,
+      change: getChangePercentage(metrics.monthlyRevenue || 0, Math.max(0, (metrics.monthlyRevenue || 0) - 1000)),
+      changeType: (metrics.monthlyRevenue || 0) > 0 ? 'positive' : 'neutral',
+    },
+    {
+      title: 'Storage Usage',
+      value: `${((metrics.storageUsage / (metrics.storageLimit || 1)) * 100).toFixed(1)}%`,
+      icon: TrendingUp,
+      change: getChangePercentage(metrics.storageUsage, Math.max(0, metrics.storageUsage - 10)),
+      changeType: (metrics.storageUsage / (metrics.storageLimit || 1)) > 0.9 ? 'negative' : 'neutral',
+    },
+  ];
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setLoading(true);
+        const response = await fetchOrganizationAdminDashboard(orgId);
+        const data = response as unknown as ApiDashboardResponse;
+        
+        // Transform the data to match our DashboardData interface
+        const transformedData: DashboardData = {
+          metrics: {
+            totalMembers: data.metrics?.total_members || 0,
+            activeMembers: data.metrics?.active_members || 0,
+            totalProjects: data.metrics?.total_projects || 0,
+            activeProjects: data.metrics?.active_projects || 0,
+            pendingTasks: data.metrics?.pending_tasks || 0,
+            completedTasks: data.metrics?.completed_tasks || 0,
+            monthlyRevenue: data.metrics?.monthly_revenue || 0,
+            totalRevenue: data.metrics?.total_revenue || 0,
+            pendingInvoices: data.metrics?.pending_invoices || 0,
+            overdueInvoices: data.metrics?.overdue_invoices || 0,
+            storageUsage: data.metrics?.storage_usage || 0,
+            storageLimit: data.metrics?.storage_limit || 1,
+            memberActivity: data.metrics?.member_activity || [],
+            projectStatus: data.metrics?.project_status || []
+          },
+          recentActivities: (data.recent_activities || []).map((activity) => ({
+            ...activity,
+            id: activity.id,
+            action: activity.action,
+            user: activity.user_name || 'System',
+            time: format(new Date(activity.timestamp), 'MMM d, yyyy HH:mm'),
+            userName: activity.user_name,
+            timestamp: activity.timestamp
+          })),
+          projects: data.projects || [],
+          upcomingDeadlines: data.upcoming_deadlines || [],
+          memberActivity: data.metrics?.member_activity || [],
+          teamMembers: data.team_members || []
+        };
+        
+        setDashboardData(transformedData);
+      } catch (err) {
+        console.error('Error loading dashboard data:', err);
+        setError('Failed to load dashboard data. Please try again later.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadData();
+  }, [orgId]);
+  
+  if (error) {
+    return (
+      <div className="p-6">
+        <div className="rounded-md bg-red-50 p-4">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <AlertCircle className="h-5 w-5 text-red-400" aria-hidden="true" />
+            </div>
+            <div className="ml-3">
+              <h3 className="text-sm font-medium text-red-800">Error loading dashboard</h3>
+              <div className="mt-2 text-sm text-red-700">
+                <p>{error}</p>
+              </div>
+              <div className="mt-4">
+                <Button
+                  variant="outline"
+                  onClick={() => window.location.reload()}
+                  className="text-red-800 hover:bg-red-100"
+                >
+                  Try again
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="p-6 space-y-6">
       <div>
@@ -78,150 +295,155 @@ export function AdminOverview() {
         <p className="mt-2 text-gray-600">Monitor your organization's performance and manage your team</p>
       </div>
 
-      {/* Metrics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {metrics.map((metric) => (
-          <Card key={metric.title} className="hover:shadow-lg transition-shadow duration-200">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">
-                {metric.title}
-              </CardTitle>
-              <metric.icon className="h-4 w-4 text-gray-400" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-gray-900">{metric.value}</div>
-              <p className={`text-xs flex items-center mt-1 ${
-                metric.changeType === 'positive' ? 'text-green-600' : 'text-red-600'
-              }`}>
-                <TrendingUp className="h-3 w-3 mr-1" />
-                {metric.change} from last month
-              </p>
-            </CardContent>
-          </Card>
+      {/* Metrics Grid */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        {metricCards.map((card, index) => (
+          <MetricCard
+            key={index}
+            title={card.title}
+            value={card.value}
+            change={card.change}
+            changeType={card.changeType}
+            icon={card.icon}
+            loading={loading}
+          />
         ))}
       </div>
 
       {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid gap-4 md:grid-cols-2">
+        {/* Member Activity Chart */}
         <Card>
           <CardHeader>
             <CardTitle>Member Activity</CardTitle>
-            <CardDescription>Active members and new joiners over time</CardDescription>
+            <CardDescription>Active and new members over time</CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={memberActivityData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis />
-                <Tooltip />
-                <Line type="monotone" dataKey="active" stroke="#3B82F6" strokeWidth={2} name="Active Members" />
-                <Line type="monotone" dataKey="new" stroke="#10B981" strokeWidth={2} name="New Members" />
-              </LineChart>
-            </ResponsiveContainer>
+            <div className="h-[300px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={dashboardData.memberActivity}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" />
+                  <YAxis />
+                  <Tooltip />
+                  <Line type="monotone" dataKey="active" stroke="#8884d8" />
+                  <Line type="monotone" dataKey="new" stroke="#82ca9d" />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
           </CardContent>
         </Card>
 
+        {/* Project Status Chart */}
         <Card>
           <CardHeader>
-            <CardTitle>Project Status Distribution</CardTitle>
-            <CardDescription>Current status of all projects</CardDescription>
+            <CardTitle>Project Status</CardTitle>
+            <CardDescription>Distribution of projects by status</CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
+            <div className="h-[300px] flex items-center justify-center">
+              <PieChart width={400} height={300}>
                 <Pie
-                  data={projectStatusData}
+                  data={dashboardData.metrics.projectStatus}
                   cx="50%"
                   cy="50%"
-                  innerRadius={60}
-                  outerRadius={100}
-                  paddingAngle={5}
-                  dataKey="value"
+                  labelLine={false}
+                  label={({ name, percent = 0 }) => 
+                    `${name}: ${(percent * 100).toFixed(0)}%`
+                  }
+                  outerRadius={80}
+                  fill="#8884d8"
+                  dataKey="count"
                 >
-                  {projectStatusData.map((entry, index) => (
+                  {dashboardData.metrics.projectStatus.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
                 <Tooltip />
               </PieChart>
-            </ResponsiveContainer>
-            <div className="flex flex-wrap justify-center gap-4 mt-4">
-              {projectStatusData.map((entry) => (
-                <div key={entry.name} className="flex items-center">
-                  <div 
-                    className="w-3 h-3 rounded-full mr-2" 
-                    style={{ backgroundColor: entry.color }}
-                  />
-                  <span className="text-sm text-gray-600">{entry.name} ({entry.value})</span>
-                </div>
-              ))}
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Recent Activities and Quick Actions */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center">
-              <Clock className="h-5 w-5 mr-2" />
-              Recent Activities
-            </CardTitle>
-            <CardDescription>Latest organization activities</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {recentActivities.map((activity) => (
-                <div key={activity.id} className="flex items-center space-x-3 p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">
-                  <div className={`w-2 h-2 rounded-full ${
-                    activity.type === 'billing' ? 'bg-green-500' :
-                    activity.type === 'project' ? 'bg-blue-500' :
-                    activity.type === 'member' ? 'bg-purple-500' :
-                    'bg-gray-500'
-                  }`} />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900">{activity.action}</p>
-                    <p className="text-sm text-gray-500">{activity.user}</p>
-                  </div>
-                  <span className="text-xs text-gray-400">{activity.time}</span>
-                </div>
-              ))}
+      {/* Recent Activity */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Recent Activity</CardTitle>
+              <CardDescription>Latest actions in your organization</CardDescription>
             </div>
-            <Button variant="outline" className="w-full mt-4">
-              View All Activities
+            <Button variant="outline" size="sm">
+              View All
             </Button>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Quick Actions</CardTitle>
-            <CardDescription>Frequently used administrative functions</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 gap-4">
-              <Button className="h-20 flex-col space-y-2">
-                <Users className="h-6 w-6" />
-                <span>Add Member</span>
-              </Button>
-              <Button variant="outline" className="h-20 flex-col space-y-2">
-                <FolderOpen className="h-6 w-6" />
-                <span>New Project</span>
-              </Button>
-              <Button variant="outline" className="h-20 flex-col space-y-2">
-                <Calendar className="h-6 w-6" />
-                <span>Schedule Meeting</span>
-              </Button>
-              <Button variant="outline" className="h-20 flex-col space-y-2">
-                <DollarSign className="h-6 w-6" />
-                <span>View Billing</span>
-              </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <div className="h-[200px] flex items-center justify-center">
+              <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
             </div>
-          </CardContent>
-        </Card>
-      </div>
+          ) : dashboardData.recentActivities.length > 0 ? (
+            <div className="space-y-4">
+              {dashboardData.recentActivities.map((activity) => (
+                <div key={activity.id} className="flex items-start pb-4 border-b last:border-0 last:pb-0">
+                  <div className="flex-shrink-0 mr-3">
+                    <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center">
+                      <Users className="h-5 w-5 text-gray-500" />
+                    </div>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900 truncate">
+                      {activity.user}
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      {activity.action}
+                    </p>
+                  </div>
+                  <div className="ml-4 flex-shrink-0">
+                    <p className="text-sm text-gray-500">
+                      {activity.time}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="h-[200px] flex items-center justify-center text-gray-500">
+              No recent activities
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Quick Actions */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Quick Actions</CardTitle>
+          <CardDescription>Frequently used administrative functions</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 gap-4">
+            <Button className="h-20 flex-col space-y-2">
+              <Users className="h-6 w-6" />
+              <span>Add Member</span>
+            </Button>
+            <Button variant="outline" className="h-20 flex-col space-y-2">
+              <FolderOpen className="h-6 w-6" />
+              <span>New Project</span>
+            </Button>
+            <Button variant="outline" className="h-20 flex-col space-y-2">
+              <Calendar className="h-6 w-6" />
+              <span>Schedule Meeting</span>
+            </Button>
+            <Button variant="outline" className="h-20 flex-col space-y-2">
+              <DollarSign className="h-6 w-6" />
+              <span>View Billing</span>
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Alerts and Notifications */}
       <Card>
@@ -262,4 +484,4 @@ export function AdminOverview() {
       </Card>
     </div>
   );
-}
+};

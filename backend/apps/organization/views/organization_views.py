@@ -1,6 +1,7 @@
 from rest_framework import viewsets, status, permissions
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
+from rest_framework.permissions import AllowAny
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 from django.db.models import Count, Q
@@ -19,6 +20,27 @@ from apps.organization.serializers import (
 from apps.organization.permissions import IsOrganizationAdmin
 from apps.users.permissions import IsSuperAdmin
 
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def debug_organization_view(request, pk=None):
+    """
+    Debug endpoint to test organization URL routing.
+    """
+    return Response({
+        'message': 'Debug endpoint reached',
+        'org_id': str(pk) if pk else None,
+        'method': request.method,
+        'path': request.path,
+        'query_params': dict(request.query_params),
+        'headers': {
+            'authorization': 'Bearer [REDACTED]' if 'HTTP_AUTHORIZATION' in request.META else None,
+            'content_type': request.content_type,
+        },
+        'user': str(request.user) if hasattr(request, 'user') else None,
+        'authenticated': request.user.is_authenticated if hasattr(request, 'user') else False,
+    }, status=status.HTTP_200_OK)
+
 class OrganizationViewSet(viewsets.ModelViewSet):
     """
     ViewSet for managing organizations.
@@ -28,8 +50,8 @@ class OrganizationViewSet(viewsets.ModelViewSet):
     ).all()
     serializer_class = OrganizationSerializer
     permission_classes = [permissions.IsAuthenticated]
-    lookup_field = 'id'
-    lookup_url_kwarg = 'org_id'
+    lookup_field = 'pk'
+    lookup_url_kwarg = 'pk'  # This should match the URL pattern
     filterset_fields = ['is_active']
     search_fields = ['name', 'description', 'industry']
 
@@ -67,6 +89,14 @@ class OrganizationViewSet(viewsets.ModelViewSet):
             )
             
         return queryset
+
+    def retrieve(self, request, *args, **kwargs):
+        """
+        Retrieve an organization instance.
+        """
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        return Response(serializer.data)
 
     def get_permissions(self):
         """
