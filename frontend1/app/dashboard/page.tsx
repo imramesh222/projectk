@@ -165,7 +165,7 @@ export default function DashboardPage() {
           localStorage.setItem(`org_roles_${orgId}`, JSON.stringify(primaryMembership.roles.map(r => r.name)));
           
           debug(`Redirecting to organization dashboard: ${primaryMembership.organization_id} with roles: ${primaryMembership.roles.map(r => r.name).join(', ')}`);
-          router.push(`/dashboard/organization/${primaryMembership.organization_id}`);
+          router.push(`/dashboard/organization/${primaryMembership.organization_id}/`);
         } else {
           // If no organization memberships, show appropriate UI
           return (

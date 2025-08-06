@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { MetricCard } from '../common/MetricCard';
 import { 
   Users, 
   FolderOpen, 
@@ -16,6 +17,7 @@ import {
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { fetchOrganizationAdminDashboard } from '@/services/organizationService';
 import { format } from 'date-fns';
+import { LucideIcon } from 'lucide-react';
 
 // Define the API response type since we're not using the one from organizationService
 type ApiDashboardMetrics = {
@@ -80,57 +82,7 @@ interface DashboardData {
   teamMembers: any[];
 }
 
-interface MetricCardProps {
-  title: string;
-  value: string | number;
-  change?: string;
-  changeType?: 'positive' | 'negative' | 'neutral';
-  icon: React.ElementType;
-  loading?: boolean;
-}
-
-
-
-const MetricCard: React.FC<MetricCardProps> = ({ 
-  title, 
-  value, 
-  change, 
-  changeType = 'neutral', 
-  icon: Icon, 
-  loading = false 
-}) => (
-  <Card className="hover:shadow-lg transition-shadow duration-200">
-    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-      <CardTitle className="text-sm font-medium text-gray-600">
-        {title}
-      </CardTitle>
-      <Icon className="h-4 w-4 text-gray-400" />
-    </CardHeader>
-    <CardContent>
-      {loading ? (
-        <div className="h-8 flex items-center">
-          <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
-        </div>
-      ) : (
-        <>
-          <div className="text-2xl font-bold text-gray-900">{value}</div>
-          {change && (
-            <p className={`text-xs flex items-center mt-1 ${
-              changeType === 'positive' ? 'text-green-600' : 
-              changeType === 'negative' ? 'text-red-600' : 'text-gray-500'
-            }`}>
-              <TrendingUp className={`h-3 w-3 mr-1 ${
-                changeType === 'positive' ? 'text-green-600' : 
-                changeType === 'negative' ? 'text-red-600' : 'text-gray-500'
-              }`} />
-              {change}
-            </p>
-          )}
-        </>
-      )}
-    </CardContent>
-  </Card>
-);
+// MetricCard has been moved to shared components
 
 interface AdminOverviewProps {
   orgId: string;
@@ -171,40 +123,51 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({ orgId }) => {
     return `${change >= 0 ? '+' : ''}${change.toFixed(1)}%`;
   };
 
-  const metricCards: Array<{
-    title: string;
-    value: string | number;
-    icon: React.ElementType;
-    change: string;
-    changeType: 'positive' | 'negative' | 'neutral';
-  }> = [
+  const metricCards = [
     {
       title: 'Total Members',
-      value: metrics.totalMembers,
-      icon: Users,
-      change: getChangePercentage(metrics.totalMembers, Math.max(0, metrics.totalMembers - 5)),
-      changeType: 'positive',
+      value: metrics.totalMembers.toString(),
+      icon: <Users className="h-4 w-4 text-muted-foreground" />,
+      trend: {
+        value: getChangePercentage(metrics.totalMembers, Math.max(0, metrics.totalMembers - 5)),
+        type: 'up' as const,
+      }
     },
     {
       title: 'Active Projects',
-      value: metrics.activeProjects,
-      icon: FolderOpen,
-      change: getChangePercentage(metrics.activeProjects, Math.max(0, metrics.activeProjects - 2)),
-      changeType: metrics.activeProjects > 0 ? 'positive' : 'neutral',
+      value: `${metrics.activeProjects}/${metrics.totalProjects}`,
+      icon: <FolderOpen className="h-4 w-4 text-muted-foreground" />,
+      trend: {
+        value: getChangePercentage(metrics.activeProjects, Math.max(0, metrics.activeProjects - 2)),
+        type: metrics.activeProjects > 0 ? 'up' as const : 'neutral' as const,
+      }
     },
     {
       title: 'Monthly Revenue',
-      value: new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(metrics.monthlyRevenue || 0),
-      icon: DollarSign,
-      change: getChangePercentage(metrics.monthlyRevenue || 0, Math.max(0, (metrics.monthlyRevenue || 0) - 1000)),
-      changeType: (metrics.monthlyRevenue || 0) > 0 ? 'positive' : 'neutral',
+      value: `$${metrics.monthlyRevenue.toLocaleString()}`,
+      icon: <DollarSign className="h-4 w-4 text-muted-foreground" />,
+      trend: {
+        value: getChangePercentage(metrics.monthlyRevenue || 0, Math.max(0, (metrics.monthlyRevenue || 0) - 1000)),
+        type: metrics.monthlyRevenue > 0 ? 'up' as const : 'neutral' as const,
+      }
     },
     {
       title: 'Storage Usage',
       value: `${((metrics.storageUsage / (metrics.storageLimit || 1)) * 100).toFixed(1)}%`,
-      icon: TrendingUp,
-      change: getChangePercentage(metrics.storageUsage, Math.max(0, metrics.storageUsage - 10)),
-      changeType: (metrics.storageUsage / (metrics.storageLimit || 1)) > 0.9 ? 'negative' : 'neutral',
+      icon: <TrendingUp className="h-4 w-4 text-muted-foreground" />,
+      trend: {
+        value: getChangePercentage(metrics.storageUsage, Math.max(0, metrics.storageUsage - 10)),
+        type: (metrics.storageUsage / (metrics.storageLimit || 1)) > 0.9 ? 'down' as const : 'neutral' as const,
+      }
+    },
+    {
+      title: 'Pending Tasks',
+      value: metrics.pendingTasks.toString(),
+      icon: <Clock className="h-4 w-4 text-muted-foreground" />,
+      trend: {
+        value: `+${metrics.pendingTasks} this week`,
+        type: metrics.pendingTasks > 0 ? 'down' as const : 'neutral' as const,
+      }
     },
   ];
 
@@ -302,10 +265,9 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({ orgId }) => {
             key={index}
             title={card.title}
             value={card.value}
-            change={card.change}
-            changeType={card.changeType}
+            trend={card.trend}
             icon={card.icon}
-            loading={loading}
+            className="hover:shadow-lg transition-shadow duration-200"
           />
         ))}
       </div>
@@ -342,25 +304,48 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({ orgId }) => {
           </CardHeader>
           <CardContent>
             <div className="h-[300px] flex items-center justify-center">
-              <PieChart width={400} height={300}>
-                <Pie
-                  data={dashboardData.metrics.projectStatus}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  label={({ name, percent = 0 }) => 
-                    `${name}: ${(percent * 100).toFixed(0)}%`
-                  }
-                  outerRadius={80}
-                  fill="#8884d8"
-                  dataKey="count"
-                >
-                  {dashboardData.metrics.projectStatus.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                <MetricCard
+                  title="Total Members"
+                  value={dashboardData.metrics.totalMembers.toString()}
+                  trend={{
+                    value: "+12% from last month",
+                    type: 'up'
+                  }}
+                  icon={<Users className="h-4 w-4 text-muted-foreground" />}
+                  className="hover:shadow-lg transition-shadow duration-200"
+                />
+                <MetricCard
+                  title="Active Projects"
+                  value={`${dashboardData.metrics.activeProjects}/${dashboardData.metrics.totalProjects}`}
+                  trend={{
+                    value: "+5 this week",
+                    type: 'up'
+                  }}
+                  icon={<FolderOpen className="h-4 w-4 text-muted-foreground" />}
+                  className="hover:shadow-lg transition-shadow duration-200"
+                />
+                <MetricCard
+                  title="Monthly Revenue"
+                  value={`$${dashboardData.metrics.monthlyRevenue.toLocaleString()}`}
+                  trend={{
+                    value: "+8.2% from last month",
+                    type: 'up'
+                  }}
+                  icon={<DollarSign className="h-4 w-4 text-muted-foreground" />}
+                  className="hover:shadow-lg transition-shadow duration-200"
+                />
+                <MetricCard
+                  title="Pending Tasks"
+                  value={dashboardData.metrics.pendingTasks.toString()}
+                  trend={{
+                    value: "-3 today",
+                    type: 'down'
+                  }}
+                  icon={<Clock className="h-4 w-4 text-muted-foreground" />}
+                  className="hover:shadow-lg transition-shadow duration-200"
+                />
+              </div>
             </div>
           </CardContent>
         </Card>
