@@ -25,6 +25,10 @@ urlpatterns = [
     path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('token/verify/', TokenVerifyView.as_view(), name='token_verify'),
     
+    # Current user profile endpoints
+    path('me/', UserViewSet.as_view({'get': 'me'}), name='user-me'),
+    path('me/update/', UserViewSet.as_view({'patch': 'update_me'}), name='user-update-me'),
+    
     # User role management (admin only)
     path('<uuid:user_id>/update-role/', UserRoleUpdateView.as_view(), name='user-update-role'),
     

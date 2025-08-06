@@ -1,9 +1,11 @@
 from .member_views import OrganizationMemberViewSet
-from .organization_views import OrganizationViewSet
-from .dashboard_views import DashboardViewSet
+from .organization_views import OrganizationViewSet, debug_organization_view
+from .dashboard_views import DashboardViewSet, OrganizationAdminDashboardView
 
 __all__ = [
     'DashboardViewSet',
     'OrganizationMemberViewSet',
-    'OrganizationViewSet'
+    'OrganizationViewSet',
+    'debug_organization_view',
+    'OrganizationAdminDashboardView'
 ]

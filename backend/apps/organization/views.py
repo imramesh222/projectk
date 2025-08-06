@@ -7,9 +7,12 @@ from django.utils import timezone
 from datetime import timedelta, datetime
 from django.core.mail import send_mail
 from django.conf import settings
+from rest_framework.response import Response
+from rest_framework import status
 
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.views import APIView
+from rest_framework.decorators import api_view, permission_classes
 from apps.users.permissions import IsSuperAdmin, IsAdmin, HasOrganizationAccess
 from .models import Organization, AdminAssignment, Salesperson, Verifier, ProjectManager, Developer, Support, OrganizationMember
 from .serializers import (
@@ -17,6 +20,21 @@ from .serializers import (
     AdminAssignmentSerializer, AdminAssignmentCreateSerializer, AdminAssignmentUpdateSerializer,
     DashboardMetricsSerializer
 )
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def debug_organization_view(request, org_id=None):
+    """
+    Debug endpoint to test organization URL routing.
+    """
+    return Response({
+        'message': 'Debug endpoint reached',
+        'org_id': str(org_id) if org_id else None,
+        'method': request.method,
+        'path': request.path,
+        'query_params': dict(request.query_params)
+    }, status=status.HTTP_200_OK)
+
 
 class DashboardViewSet(APIView):
     """
@@ -117,6 +135,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
     - Admins can see and manage their own organization
     - Other users can only list organizations (filtered by their access)
     """
+    from .models import OrganizationRoleChoices
     queryset = Organization.objects.all()
     serializer_class = OrganizationSerializer
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
@@ -149,49 +168,160 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         Filter organizations based on the requesting user's role.
         """
         # Handle Swagger schema generation
-        if getattr(self, 'swagger_fake_view', False):
-            return Organization.objects.none()
-            
         user = self.request.user
-        
-        # Handle unauthenticated users
-        if not user.is_authenticated:
-            return Organization.objects.none()
-            
         queryset = Organization.objects.all()
 
         # Superadmins can see all organizations
-        if hasattr(user, 'role') and user.role == 'superadmin':
+        if user.is_superuser:
             return queryset
 
-        # Admins can see their own organization
-        if hasattr(user, 'admin'):
-            return queryset.filter(id=user.admin.organization_id)
+        # Organization admins can see their own organization
+        if hasattr(user, 'admin_organization'):
+            return Organization.objects.filter(pk=user.admin_organization.organization.pk)
+            
+        # Regular users can only see organizations they're a member of
+        return Organization.objects.filter(
+            Q(admin_assignments__admin=user, admin_assignments__is_active=True) |
+            Q(developers__user=user) |
+            Q(project_managers__user=user) |
+            Q(salespersons__user=user) |
+            Q(support_staff__user=user) |
+            Q(verifiers__user=user)
+        ).distinct()
 
-        # For other roles, check if they belong to an organization
-        role_attrs = ['salesperson', 'verifier', 'projectmanager', 'developer', 'support']
-        for attr in role_attrs:
-            if hasattr(user, attr):
-                org_attr = getattr(user, attr, None)
-                if org_attr and hasattr(org_attr, 'organization_id'):
-                    return queryset.filter(id=org_attr.organization_id)
-
-        return Organization.objects.none()
+    def retrieve(self, request, *args, **kwargs):
+        """
+        Retrieve a single organization by ID.
+        """
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        return Response(serializer.data)
 
     @action(detail=True, methods=['get'])
     def members(self, request, pk=None):
         """
-        Get all members of an organization.
+        Get all members of an organization with their roles.
         """
         organization = self.get_object()
-        members = {
-            'admins': [admin.user for admin in organization.admins.all()],
-            'salespeople': [sp.user for sp in organization.salespeople.all()],
-            'verifiers': [v.user for v in organization.verifiers.all()],
-            'project_managers': [pm.user for pm in organization.project_managers.all()],
-            'developers': [dev.user for dev in organization.developers.all()],
-            'support_staff': [s.user for s in organization.support_staff.all()],
+        members = organization.members.select_related('user').filter(is_active=True)
+        
+        # Group members by role
+        roles = {}
+        for role_choice in OrganizationRoleChoices.choices:
+            role_key = role_choice[0]
+            role_name = role_choice[1].lower() + 's'  # Convert to plural
+            roles[role_name] = [
+                {
+                    'id': str(member.user.id),
+                    'email': member.user.email,
+                    'name': f"{member.user.first_name} {member.user.last_name}".strip() or member.user.email.split('@')[0],
+                    'role': member.role,
+                    'joined_date': member.created_at.strftime('%Y-%m-%d')
+                }
+                for member in members.filter(role=role_key)
+            ]
+            
+        return Response(roles)
+        
+    @action(detail=True, methods=['get'])
+    def dashboard(self, request, pk=None):
+        """
+        Get dashboard metrics for an organization.
+        """
+        from django.db.models import Count, Q
+        from datetime import datetime, timedelta
+        
+        organization = self.get_object()
+        now = timezone.now()
+        one_month_ago = now - timedelta(days=30)
+        
+        # Get member statistics
+        total_members = organization.members.filter(is_active=True).count()
+        new_members_this_month = organization.members.filter(
+            created_at__gte=one_month_ago,
+            is_active=True
+        ).count()
+        
+        # Get member growth data for the last 6 months
+        monthly_member_growth = []
+        for i in range(6):
+            month = now - timedelta(days=30 * (5 - i))
+            month_start = month.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            month_end = (month_start + timedelta(days=32)).replace(day=1) - timedelta(days=1)
+            
+            new_members = organization.members.filter(
+                created_at__range=(month_start, month_end),
+                is_active=True
+            ).count()
+            
+            monthly_member_growth.append({
+                'month': month.strftime('%b %Y'),
+                'new_members': new_members,
+                'total_members': organization.members.filter(
+                    created_at__lte=month_end,
+                    is_active=True
+                ).count()
+            })
+        
+        # Get role distribution
+        role_distribution = organization.members.filter(
+            is_active=True
+        ).values('role').annotate(
+            count=Count('id')
+        ).order_by('-count')
+        
+        # Prepare response data
+        data = {
+            'stats': {
+                'total_members': total_members,
+                'new_members_this_month': new_members_this_month,
+                'member_growth_rate': round((new_members_this_month / (total_members - new_members_this_month)) * 100, 1) if total_members > new_members_this_month else 100,
+            },
+            'member_growth': monthly_member_growth,
+            'role_distribution': [
+                {'role': item['role'], 'count': item['count']}
+                for item in role_distribution
+            ],
+            'recent_activity': self._get_recent_activity(organization)
         }
+        
+        return Response(data)
+    
+    def _get_recent_activity(self, organization):
+        """Helper method to get recent activity for the organization."""
+        from django.contrib.contenttypes.models import ContentType
+        from django.utils import timezone
+        from django.db.models import Q
+        
+        thirty_days_ago = timezone.now() - timezone.timedelta(days=30)
+        
+        # Get recent member additions
+        recent_members = organization.members.filter(
+            created_at__gte=thirty_days_ago
+        ).select_related('user').order_by('-created_at')[:5]
+        
+        activities = []
+        for member in recent_members:
+            activities.append({
+                'type': 'member_added',
+                'title': f'New {member.get_role_display()} joined',
+                'description': f'{member.user.get_full_name()} joined as {member.get_role_display()}',
+                'timestamp': member.created_at,
+                'user': {
+                    'id': str(member.user.id),
+                    'name': member.user.get_full_name(),
+                    'email': member.user.email
+                }
+            })
+            
+        # Sort all activities by timestamp (newest first)
+        activities.sort(key=lambda x: x['timestamp'], reverse=True)
+        
+        # Convert datetime to string for JSON serialization
+        for activity in activities:
+            activity['timestamp'] = activity['timestamp'].isoformat()
+            
+        return activities[:10]  # Return only the 10 most recent activities
         return Response(members)
 
 

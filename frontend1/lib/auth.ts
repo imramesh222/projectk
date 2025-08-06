@@ -165,15 +165,15 @@ export const getMockUser = (): User => {
   };
 };
 
-// Get current user with fallback to mock for development
-export const getCurrentUserWithFallback = (): User | null => {
+// Get current user with fallback to basic user data
+export const getCurrentUserWithFallback = (): any => {
+  // Get the basic user data from the token
   const user = getCurrentUser();
+  if (!user) return null;
   
-  // In development, return mock user if no real user is found
-  if (!user && process.env.NODE_ENV === 'development') {
-    return getMockUser();
-  }
-  
+  // Note: We're not adding mock data here anymore
+  // The actual organization memberships will be fetched from the API
+  // in the dashboard page or other components that need them
   return user;
 };
 
