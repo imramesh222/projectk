@@ -17,7 +17,17 @@ import {
   Table as TableType,
   Row,
   ColumnResizeMode,
+  HeaderContext,
+  ColumnMeta,
 } from '@tanstack/react-table';
+
+// Extend the ColumnMeta type to include our custom properties
+declare module '@tanstack/react-table' {
+  interface ColumnMeta<TData extends unknown, TValue> {
+    headerClassName?: string;
+    cellClassName?: string | ((data: TData) => string);
+  }
+}
 
 import {
   Table,
@@ -162,7 +172,7 @@ export function DataTable<TData, TValue>({
                   <TableHead 
                     key={header.id}
                     colSpan={header.colSpan}
-                    className={header.column.columnDef.headerClassName as string}
+                    className={header.column.columnDef.meta?.headerClassName}
                     style={{
                       width: header.getSize(),
                     }}
@@ -190,7 +200,11 @@ export function DataTable<TData, TValue>({
                   {row.getVisibleCells().map((cell) => (
                     <TableCell 
                       key={cell.id}
-                      className={cell.column.columnDef.cellClassName as string}
+                      className={
+                        typeof cell.column.columnDef.meta?.cellClassName === 'function'
+                          ? cell.column.columnDef.meta.cellClassName(row.original)
+                          : cell.column.columnDef.meta?.cellClassName
+                      }
                     >
                       {flexRender(
                         cell.column.columnDef.cell,

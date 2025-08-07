@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { getCurrentUserWithFallback, getAccessToken } from '@/lib/auth';
 import { apiGet } from '@/lib/api-client';
 import { Skeleton } from '@/components/ui/skeleton';
+import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
 
 // Define types for organization memberships
 interface OrganizationRole {
@@ -48,27 +49,42 @@ const debug = (message: string, data?: any) => {
   if (process.env.NODE_ENV === 'development') {
     console.log(`[DashboardPage] ${message}`, data || '');
   }
-};
+};      
 
 export default function DashboardPage() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
-  
+  const [user, setUser] = useState<UserData | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState<'superadmin' | 'admin' | 'user'>('user');
+
   useEffect(() => {
     const checkUserAndRedirect = async () => {
       try {
         setIsLoading(true);
-        // First get the basic user data
-        const user = await getCurrentUserWithFallback();
+        const currentUser = await getCurrentUserWithFallback();
+        debug('Current user from token', currentUser);
         
-        debug('User data:', user);
-        
-        if (!user) {
-          debug('No user found, redirecting to login');
+        if (!currentUser) {
+          debug('No current user, redirecting to login');
           router.push('/login');
           return;
         }
-
+        
+        setUser(currentUser);
+        
+        // Set user role for the layout
+        if (currentUser.role === 'superadmin' || currentUser.role === 'admin') {
+          setUserRole(currentUser.role);
+        }
+        
+        // If superadmin, set role and continue
+        if (currentUser.role === 'superadmin') {
+          debug('User is superadmin');
+          setIsLoading(false);
+          return;
+        }
+        
         // Fetch detailed user data including organization memberships using the API client
         const token = getAccessToken();
         const userData: UserData = await apiGet('users/me/', token ? { token } : {});
@@ -224,15 +240,16 @@ export default function DashboardPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="space-y-4">
-          <Skeleton className="h-12 w-12 rounded-full mx-auto" />
-          <div className="space-y-2">
-            <Skeleton className="h-4 w-[250px]" />
-            <Skeleton className="h-4 w-[200px] mx-auto" />
+      <DashboardLayout userRole={userRole}>
+        <div className="max-w-7xl mx-auto p-6">
+          <Skeleton className="h-10 w-64 mb-8" />
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <Skeleton key={i} className="h-32 rounded-lg" />
+            ))}
           </div>
         </div>
-      </div>
+      </DashboardLayout>
     );
   }
   

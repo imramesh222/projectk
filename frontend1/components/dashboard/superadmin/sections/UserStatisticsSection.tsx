@@ -306,9 +306,10 @@ export function UserStatisticsSection() {
                 y: {
                   ...chartOptions.scales.y,
                   ticks: {
-                    callback: (value) => {
-                      if (value >= 1000) return `${value / 1000}k`;
-                      return value;
+                    callback: (value: string | number) => {
+                      const numValue = typeof value === 'string' ? parseFloat(value) : value;
+                      if (numValue >= 1000) return `${numValue / 1000}k`;
+                      return numValue.toString();
                     }
                   }
                 }

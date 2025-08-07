@@ -3,7 +3,7 @@ import { Table } from '@tanstack/react-table';
 import { Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { DataTableViewOptions } from '../DataTableViewOptions';
+import { DataTableViewOptions } from './DataTableViewOptions';
 
 interface DataTableToolbarProps<TData> {
   table: Table<TData>;

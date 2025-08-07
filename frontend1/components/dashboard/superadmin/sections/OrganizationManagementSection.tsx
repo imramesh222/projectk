@@ -63,8 +63,12 @@ const getPlanBadge = (plan: BillingPlan) => {
 export function OrganizationManagementSection() {
   const { toast } = useToast();
   const [organizations, setOrganizations] = useState<Organization[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
+  const [pagination, setPagination] = useState({
+    pageIndex: 0,
+    pageSize: 10,
+  });
 
   // Fetch data
   useEffect(() => {
@@ -212,7 +216,16 @@ export function OrganizationManagementSection() {
           data={organizations}
           isLoading={isLoading}
           error={error}
-          pageSize={10}
+          pageIndex={pagination.pageIndex}
+          pageSize={pagination.pageSize}
+          pageCount={Math.ceil(organizations.length / pagination.pageSize)}
+          onPaginationChange={(pageIndex, pageSize) => {
+            setPagination(prev => ({
+              ...prev,
+              pageIndex,
+              pageSize
+            }));
+          }}
         />
       </CardContent>
     </Card>
