@@ -109,7 +109,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         return [permission() for permission in permission_classes]
 
     @action(detail=True, methods=['get'])
-    def members(self, request, org_id=None):
+    def members(self, request, pk=None):
         """
         List all members of an organization with their roles.
         """

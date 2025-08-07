@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { Skeleton } from '@/components/ui/skeleton';
+import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
 
 interface OrganizationData {
   id: string;
@@ -27,7 +28,7 @@ export default function OrganizationPage() {
   const params = useParams<{ orgId: string }>();
   const [isLoading, setIsLoading] = useState(true);
   const [org, setOrg] = useState<OrganizationData | null>(null);
-  const [userRole, setUserRole] = useState<string>('member');
+  const [userRole, setUserRole] = useState<'superadmin' | 'admin' | 'user'>('user');
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -75,73 +76,61 @@ export default function OrganizationPage() {
 
   if (isLoading) {
     return (
-      <div className="p-6 space-y-4">
-        <Skeleton className="h-10 w-1/3" />
-        <Skeleton className="h-6 w-1/2" />
-        <div className="space-y-4 mt-6">
-          <Skeleton className="h-32 w-full" />
+      <DashboardLayout userRole={userRole}>
+        <div className="p-6">
+          <Skeleton className="h-8 w-48 mb-6" />
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {[1, 2, 3].map((i) => (
+              <Skeleton key={i} className="h-32 rounded-lg" />
+            ))}
+          </div>
         </div>
-      </div>
+      </DashboardLayout>
     );
   }
 
   if (error) {
     return (
-      <div className="p-6">
-        <div className="rounded-md bg-red-50 p-4">
-          <h3 className="text-sm font-medium text-red-800">Error</h3>
-          <p className="mt-2 text-sm text-red-700">{error}</p>
+      <DashboardLayout userRole={userRole}>
+        <div className="p-6">
+          <div className="rounded-md bg-red-50 p-4">
+            <h3 className="text-sm font-medium text-red-800">Error</h3>
+            <p className="mt-2 text-sm text-red-700">{error}</p>
+          </div>
         </div>
-      </div>
+      </DashboardLayout>
     );
   }
 
   if (!org) {
     return (
-      <div className="p-6">
-        <h1 className="text-2xl font-bold text-gray-900">Organization not found</h1>
-        <p className="mt-2 text-gray-600">The requested organization could not be found.</p>
-      </div>
+      <DashboardLayout userRole={userRole}>
+        <div className="p-6">
+          <div className="rounded-md bg-yellow-50 p-4">
+            <h3 className="text-sm font-medium text-yellow-800">Organization Not Found</h3>
+            <p className="mt-2 text-sm text-yellow-700">The requested organization could not be found or you don't have permission to view it.</p>
+          </div>
+        </div>
+      </DashboardLayout>
     );
   }
 
   return (
-    <div className="p-6">
-      <header className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">{org.name}</h1>
-        {org.description && (
-          <p className="mt-2 text-gray-600">{org.description}</p>
+    <DashboardLayout userRole={userRole}>
+      <div className="p-6">
+        <header className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{org.name}</h1>
+          {org.description && (
+            <p className="mt-2 text-gray-600 dark:text-gray-300">{org.description}</p>
+          )}
+        </header>
+        
+        {userRole === 'admin' ? (
+          <AdminOverview orgId={params.orgId} />
+        ) : (
+          <OrganizationDashboard orgId={org.id} />
         )}
-      </header>
-
-      {userRole === 'admin' ? (
-        // Show admin dashboard for organization admins
-        <AdminOverview orgId={params.orgId} />
-      ) : (
-        // Show regular organization dashboard for other members
-        <OrganizationDashboard orgId={params.orgId} />
-      )}
-      
-      <div className="mt-8">
-        <h3 className="text-lg font-medium mb-4">Organization Members</h3>
-        <div className="bg-white shadow overflow-hidden sm:rounded-lg">
-          <div className="px-4 py-5 sm:px-6">
-            <h3 className="text-lg leading-6 font-medium text-gray-900">
-              Team Members
-            </h3>
-          </div>
-          <div className="border-t border-gray-200 px-4 py-5 sm:p-0">
-            <dl className="sm:divide-y sm:divide-gray-200">
-              <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                <dt className="text-sm font-medium text-gray-500">Total Members</dt>
-                <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
-                  {org.members?.length || 0} members
-                </dd>
-              </div>
-            </dl>
-          </div>
-        </div>
       </div>
-    </div>
+    </DashboardLayout>
   );
 }

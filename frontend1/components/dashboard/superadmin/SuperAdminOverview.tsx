@@ -1,123 +1,281 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { useToast } from '@/hooks/use-toast';
 import { 
   Users, 
-  FolderOpen, 
+  Activity, 
   DollarSign, 
-  TrendingUp,
-  Activity,
-  Clock,
+  FolderOpen, 
+  UserCheck, 
+  Briefcase,
   Loader2,
-  AlertCircle
+  AlertCircle,
+  TrendingUp
 } from 'lucide-react';
-import { 
-  LineChart, 
-  Line, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer, 
-  PieChart, 
-  Pie, 
-  Cell 
+
+// Import services and types
+import { fetchDashboardData } from '@/services/organizationService';
+import type { 
+  OrganizationDashboardData,
+  OrganizationMetrics,
+  OrganizationActivity,
+  OrganizationProject,
+  OrganizationRole
+} from '@/types/organization';
+
+// Define API response type that matches the backend response
+interface ApiDashboardResponse {
+  metrics: {
+    // Support both snake_case and camelCase for backward compatibility
+    total_members?: number;
+    totalMembers?: number;
+    active_members?: number;
+    activeMembers?: number;
+    total_projects?: number;
+    totalProjects?: number;
+    active_projects?: number;
+    activeProjects?: number;
+    pending_tasks?: number;
+    pendingTasks?: number;
+    completed_tasks?: number;
+    completedTasks?: number;
+    monthly_revenue?: number;
+    monthlyRevenue?: number;
+    total_revenue?: number;
+    totalRevenue?: number;
+    pending_invoices?: number;
+    pendingInvoices?: number;
+    overdue_invoices?: number;
+    overdueInvoices?: number;
+    storage_usage?: number;
+    storageUsage?: number;
+    storage_limit?: number;
+    storageLimit?: number;
+    team_productivity?: number;
+    teamProductivity?: number;
+    member_growth?: number;
+    memberGrowth?: number;
+    project_completion_rate?: number;
+    projectCompletionRate?: number;
+    member_activity?: Array<{ date: string; active: number; new: number }>;
+    memberActivity?: Array<{ date: string; active: number; new: number }>;
+    project_status?: Array<{ status: string; count: number; color?: string }>;
+    projectStatus?: Array<{ status: string; count: number; color?: string }>;
+  };
+  recentActivities?: OrganizationActivity[];
+  projects?: OrganizationProject[];
+  upcomingDeadlines?: any[];
+  teamMembers?: any[];
+}
+
+// Define types for the dashboard data
+type DashboardData = OrganizationDashboardData;
+
+// Recharts components
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  PieChart,
+  Pie,
+  Cell,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip
 } from 'recharts';
-import { 
-  fetchDashboardData,
-  type MemberActivity,
-  type ProjectStatus,
-  type RecentActivity,
-  type OrganizationMetrics
-} from '@/services/organizationService';
-import { useToast } from '@/hooks/use-toast';
+
+// Import section components
+import { SystemHealthSection } from './sections/SystemHealthSection';
+import { SystemSettingsSection } from './sections/SystemSettingsSection';
+import { UserManagementSection } from './sections/UserManagementSection';
+import { UserStatisticsSection } from './sections/UserStatisticsSection';
+import { OrganizationManagementSection } from './sections/OrganizationManagementSection';
+import { OrganizationMetricsSection } from './sections/OrganizationMetricsSection';
 
 // Type for metrics cards
 interface MetricCard {
   title: string;
-  value: string;
-  change: string;
-  changeType: 'positive' | 'negative';
-  icon: any;
+  value: string | number;
+  change?: string;
+  changeType?: 'positive' | 'negative' | 'neutral';
+  icon: React.ComponentType<{ className?: string }>;
 }
 
-export function SuperAdminOverview() {
+// Default dashboard data
+const defaultDashboardData: DashboardData = {
+  metrics: {
+    totalMembers: 0,
+    activeMembers: 0,
+    totalProjects: 0,
+    activeProjects: 0,
+    pendingTasks: 0,
+    completedTasks: 0,
+    monthlyRevenue: 0,
+    totalRevenue: 0,
+    pendingInvoices: 0,
+    overdueInvoices: 0,
+    storageUsage: 0,
+    storageLimit: 0,
+    teamProductivity: 0,
+    memberGrowth: 0,
+    projectCompletionRate: 0,
+    memberActivity: [],
+    projectStatus: []
+  },
+  recentActivities: [],
+  projects: [],
+  upcomingDeadlines: [],
+  teamMembers: []
+};
+
+function SuperAdminOverview() {
   console.log('Rendering SuperAdminOverview component');
+  // All hooks must be called at the top level
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(true);
-  const [dashboardData, setDashboardData] = useState<{
-    metrics: OrganizationMetrics | null;
-    memberActivity: MemberActivity[];
-    projectStatus: ProjectStatus[];
-    recentActivities: RecentActivity[];
-  }>({
-    metrics: null,
-    memberActivity: [],
-    projectStatus: [],
-    recentActivities: []
-  });
   const [error, setError] = useState<string | null>(null);
-
+  const [dashboardData, setDashboardData] = useState<DashboardData>(defaultDashboardData);
+  
   // Format number with commas
-  const formatNumber = (num: number): string => {
+  const formatNumber = useCallback((num: number): string => {
     return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-  };
+  }, []);
 
   // Format currency
-  const formatCurrency = (amount: number): string => {
+  const formatCurrency = useCallback((amount: number): string => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD',
       minimumFractionDigits: 0,
       maximumFractionDigits: 0
     }).format(amount);
-  };
+  }, []);
+  
+  // Memoize dashboard data processing
+  const { metrics, recentActivities } = dashboardData;
+  const { memberActivity, projectStatus } = metrics;
 
+  // Prepare metric cards data
+  const metricCards: MetricCard[] = useMemo(() => {
+    const {
+      totalMembers = 0,
+      activeMembers = 0,
+      activeProjects = 0,
+      totalProjects = 0,
+      monthlyRevenue = 0,
+      totalRevenue = 0,
+      teamProductivity = 0,
+      projectCompletionRate = 0,
+      memberGrowth = 0
+    } = metrics || {};
+
+    return [
+      {
+        title: 'Total Members',
+        value: formatNumber(totalMembers),
+        change: `${memberGrowth}% from last month`,
+        changeType: memberGrowth >= 0 ? 'positive' : 'negative',
+        icon: Users,
+      },
+      {
+        title: 'Active Members',
+        value: formatNumber(activeMembers),
+        change: `${Math.round((activeMembers / Math.max(totalMembers, 1)) * 100)}% of total`,
+        changeType: 'neutral',
+        icon: UserCheck,
+      },
+      {
+        title: 'Total Projects',
+        value: formatNumber(totalProjects),
+        change: `${activeProjects} active`,
+        changeType: 'neutral',
+        icon: Briefcase,
+      },
+      {
+        title: 'Monthly Revenue',
+        value: formatCurrency(monthlyRevenue),
+        change: `${Math.round(teamProductivity)}% team productivity`,
+        changeType: 'positive',
+        icon: DollarSign,
+      },
+    ];
+  }, [metrics, formatNumber, formatCurrency]);
+
+  // Prepare data for section components
+  const organizationMetrics: OrganizationMetrics = useMemo(() => ({
+    totalMembers: metrics.totalMembers || 0,
+    activeMembers: metrics.activeMembers || 0,
+    totalProjects: metrics.totalProjects || 0,
+    activeProjects: metrics.activeProjects || 0,
+    pendingTasks: metrics.pendingTasks || 0,
+    completedTasks: metrics.completedTasks || 0,
+    monthlyRevenue: metrics.monthlyRevenue || 0,
+    totalRevenue: metrics.totalRevenue || 0,
+    pendingInvoices: metrics.pendingInvoices || 0,
+    overdueInvoices: metrics.overdueInvoices || 0,
+    storageUsage: metrics.storageUsage || 0,
+    storageLimit: metrics.storageLimit || 0,
+    teamProductivity: metrics.teamProductivity || 0,
+    memberGrowth: metrics.memberGrowth || 0,
+    projectCompletionRate: metrics.projectCompletionRate || 0,
+    memberActivity: Array.isArray(metrics.memberActivity) ? metrics.memberActivity : [],
+    projectStatus: Array.isArray(metrics.projectStatus) 
+      ? metrics.projectStatus 
+      : []
+  }), [metrics]);
+
+  // Data fetching effect
   useEffect(() => {
-    const loadData = async () => {
+    const loadDashboardData = async () => {
       try {
-        console.log('Starting to load dashboard data...');
         setIsLoading(true);
-        setError(null);
+        const response = await fetchDashboardData() as unknown as ApiDashboardResponse;
         
-        // Fetch all dashboard data in a single request
-        console.log('Calling fetchDashboardData()...');
-        const data = await fetchDashboardData();
-        
-        console.log('Received dashboard data:', JSON.stringify(data, null, 2));
-        
-        setDashboardData({
-          metrics: data.metrics,
-          memberActivity: data.memberActivity || [],
-          projectStatus: data.projectStatus || [],
-          recentActivities: data.recentActivities || []
-        });
-        
-        console.log('Dashboard data state updated');
-      } catch (error) {
-        const err = error as Error & { response?: any };
-        console.error('Error loading dashboard data:', err);
-        
-        const errorDetails = {
-          name: err.name,
-          message: err.message,
-          stack: err.stack,
-          response: err.response ? {
-            status: err.response.status,
-            statusText: err.response.statusText,
-            data: err.response.data
-          } : 'No response data'
+        // Map the response to match our DashboardData type
+        const metrics = response.metrics || {};
+        const mappedData: DashboardData = {
+          metrics: {
+            totalMembers: metrics.totalMembers ?? metrics.total_members ?? 0,
+            activeMembers: metrics.activeMembers ?? metrics.active_members ?? 0,
+            totalProjects: metrics.totalProjects ?? metrics.total_projects ?? 0,
+            activeProjects: metrics.activeProjects ?? metrics.active_projects ?? 0,
+            pendingTasks: metrics.pendingTasks ?? metrics.pending_tasks ?? 0,
+            completedTasks: metrics.completedTasks ?? metrics.completed_tasks ?? 0,
+            monthlyRevenue: metrics.monthlyRevenue ?? metrics.monthly_revenue ?? 0,
+            totalRevenue: metrics.totalRevenue ?? metrics.total_revenue ?? 0,
+            pendingInvoices: metrics.pendingInvoices ?? metrics.pending_invoices ?? 0,
+            overdueInvoices: metrics.overdueInvoices ?? metrics.overdue_invoices ?? 0,
+            storageUsage: metrics.storageUsage ?? metrics.storage_usage ?? 0,
+            storageLimit: metrics.storageLimit ?? metrics.storage_limit ?? 0,
+            teamProductivity: metrics.teamProductivity ?? metrics.team_productivity ?? 0,
+            memberGrowth: metrics.memberGrowth ?? metrics.member_growth ?? 0,
+            projectCompletionRate: metrics.projectCompletionRate ?? metrics.project_completion_rate ?? 0,
+            memberActivity: metrics.memberActivity ?? metrics.member_activity ?? [],
+            projectStatus: (metrics.projectStatus ?? metrics.project_status ?? []).map(ps => ({
+              status: ps.status,
+              count: ps.count,
+              color: ps.color || '#3b82f6' // Default blue color if not provided
+            }))
+          },
+          recentActivities: response.recentActivities ?? [],
+          projects: response.projects ?? [],
+          upcomingDeadlines: response.upcomingDeadlines ?? [],
+          teamMembers: response.teamMembers ?? []
         };
         
-        console.error('Error details:', errorDetails);
-        
+        setDashboardData(mappedData);
+        setError(null);
+      } catch (err) {
+        const error = err as Error & { response?: any };
+        console.error('Error loading dashboard data:', error);
         setError('Failed to load dashboard data. Please try again later.');
         toast({
           title: 'Error',
-          description: `Failed to load dashboard data: ${err.message || 'Unknown error'}`,
+          description: `Failed to load dashboard data: ${error.message || 'Unknown error'}`,
           variant: 'destructive',
         });
       } finally {
@@ -125,53 +283,17 @@ export function SuperAdminOverview() {
       }
     };
     
-    loadData();
+    loadDashboardData();
   }, [toast]);
 
   // Loading state
-  if (isLoading || !dashboardData.metrics) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
-
-  const { metrics, memberActivity, projectStatus, recentActivities } = dashboardData;
-  
-
-
-  // Prepare metric cards data
-  const metricCards: MetricCard[] = [
-    {
-      title: 'Total Members',
-      value: formatNumber(metrics.totalMembers),
-      change: `${metrics.memberGrowth >= 0 ? '+' : ''}${metrics.memberGrowth}%`,
-      changeType: metrics.memberGrowth >= 0 ? 'positive' : 'negative',
-      icon: Users,
-    },
-    {
-      title: 'Active Projects',
-      value: formatNumber(metrics.activeProjects),
-      change: '+8.2%',
-      changeType: 'positive',
-      icon: FolderOpen,
-    },
-    {
-      title: 'Monthly Revenue',
-      value: formatCurrency(metrics.monthlyRevenue),
-      change: '+15.3%',
-      changeType: 'positive',
-      icon: DollarSign,
-    },
-    {
-      title: 'Team Productivity',
-      value: `${metrics.teamProductivity}%`,
-      change: '+2.1%',
-      changeType: 'positive',
-      icon: Activity,
-    },
-  ];
 
   // Error state
   if (error) {
@@ -186,118 +308,74 @@ export function SuperAdminOverview() {
     );
   }
 
+  // Main component render
   return (
-    <div className="p-6 space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">Organization Overview</h1>
-        <p className="mt-2 text-gray-600">Monitor your organization's performance and manage your team</p>
-      </div>
-
-      {/* Metrics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {metricCards.map((metric: MetricCard, index: number) => (
-          <Card key={metric.title} className="hover:shadow-lg transition-shadow duration-200">
+    <div className="space-y-6">
+      {/* Metrics Grid */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        {metricCards.map((card, index) => (
+          <Card key={index}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">
-                {metric.title}
+              <CardTitle className="text-sm font-medium">
+                {card.title}
               </CardTitle>
-              <metric.icon className="h-4 w-4 text-gray-400" />
+              <card.icon className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-gray-900">{metric.value}</div>
-              <p className={`text-xs flex items-center mt-1 ${
-                metric.changeType === 'positive' ? 'text-green-600' : 'text-red-600'
-              }`}>
-                <TrendingUp className="h-3 w-3 mr-1" />
-                {metric.change} from last month
-              </p>
+              <div className="text-2xl font-bold">{card.value}</div>
+              {card.change && (
+                <p className="text-xs text-muted-foreground">
+                  {card.change}
+                </p>
+              )}
             </CardContent>
           </Card>
         ))}
       </div>
 
-      {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Member Activity Chart */}
-        <Card className="lg:col-span-2">
+      {/* Organization Metrics Section */}
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card>
           <CardHeader>
-            <CardTitle>Member Activity</CardTitle>
+            <CardTitle>Organization Metrics</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-80">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={memberActivity}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="month" />
-                  <YAxis />
-                  <Tooltip />
-                  <Line 
-                    type="monotone" 
-                    dataKey="active" 
-                    name="Active Members"
-                    stroke="#3B82F6" 
-                    strokeWidth={2}
-                    dot={{ r: 4 }}
-                  />
-                  <Line 
-                    type="monotone" 
-                    dataKey="new" 
-                    name="New Members"
-                    stroke="#10B981" 
-                    strokeWidth={2}
-                    dot={{ r: 4 }}
-                    strokeDasharray="5 5"
-                  />
-                </LineChart>
-              </ResponsiveContainer>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Total Members</span>
+                <span className="font-medium">{formatNumber(metrics.totalMembers)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Active Projects</span>
+                <span className="font-medium">{formatNumber(metrics.activeProjects)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Monthly Revenue</span>
+                <span className="font-medium">{formatCurrency(metrics.monthlyRevenue)}</span>
+              </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Project Status Chart */}
         <Card>
           <CardHeader>
-            <CardTitle>Project Status</CardTitle>
+            <CardTitle>System Health</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-80 flex flex-col items-center justify-center">
-              <div className="w-full h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={projectStatus}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={60}
-                      outerRadius={80}
-                      paddingAngle={5}
-                      dataKey="value"
-                    >
-                      {projectStatus.map((entry: ProjectStatus, index: number) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip 
-                      formatter={(value: number, name: string, props: any) => [
-                        `${value}%`,
-                        props.payload.name
-                      ]}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Storage Usage</span>
+                <span className="font-medium">
+                  {formatNumber(metrics.storageUsage)} / {formatNumber(metrics.storageLimit)} MB
+                </span>
               </div>
-              <div className="mt-4 grid grid-cols-2 gap-2 w-full">
-                {projectStatus.map((status: ProjectStatus, index: number) => (
-                  <div key={index} className="flex items-center">
-                    <div 
-                      className="w-3 h-3 rounded-full mr-2" 
-                      style={{ backgroundColor: status.color }}
-                    />
-                    <span className="text-sm text-gray-600">
-                      {status.name} ({status.value}%)
-                    </span>
-                  </div>
-                ))}
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Pending Invoices</span>
+                <span className="font-medium">{formatNumber(metrics.pendingInvoices)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Overdue Invoices</span>
+                <span className="font-medium">{formatNumber(metrics.overdueInvoices)}</span>
               </div>
             </div>
           </CardContent>
@@ -307,38 +385,42 @@ export function SuperAdminOverview() {
       {/* Recent Activities */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle>Recent Activities</CardTitle>
-            <Button variant="outline" size="sm">
-              View All
-            </Button>
-          </div>
+          <CardTitle>Recent Activities</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
-            {recentActivities.map((activity: RecentActivity) => (
-              <div key={activity.id} className="flex items-start pb-4 border-b border-gray-100 last:border-0 last:pb-0">
-                <div className="flex-shrink-0">
-                  <div className="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center">
-                    {activity.type === 'member' && <Users className="h-5 w-5 text-blue-500" />}
-                    {activity.type === 'project' && <FolderOpen className="h-5 w-5 text-green-500" />}
-                    {activity.type === 'billing' && <DollarSign className="h-5 w-5 text-purple-500" />}
-                    {activity.type === 'meeting' && <Clock className="h-5 w-5 text-amber-500" />}
+          {recentActivities.length > 0 ? (
+            <div className="space-y-4">
+              {recentActivities.map((activity, index) => (
+                <div key={index} className="flex items-start space-x-4">
+                  <div className="flex-1 space-y-1">
+                    <p className="text-sm font-medium leading-none">
+                      {activity.action || 'Activity'}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {activity.action || 'No details available'}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {new Date().toLocaleString()}
+                    </p>
                   </div>
                 </div>
-                <div className="ml-4 flex-1">
-                  <p className="text-sm font-medium text-gray-900">
-                    {activity.action}
-                  </p>
-                  <p className="text-sm text-gray-500">
-                    {activity.user} • <span className="text-xs text-gray-400">{activity.time}</span>
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">No recent activities</p>
+          )}
         </CardContent>
       </Card>
+
+      {/* Section Components - These are now self-contained with their own data fetching */}
+      <div className="space-y-6">
+        <SystemHealthSection />
+        <UserStatisticsSection />
+        <OrganizationMetricsSection />
+        <UserManagementSection />
+        <OrganizationManagementSection />
+        <SystemSettingsSection />
+      </div>
     </div>
   );
 }
