@@ -1,13 +1,19 @@
 import { apiGet } from './apiService';
 import { 
   Organization, 
+  OrganizationListItem as OrgListItem,
   OrganizationMember, 
   OrganizationMetrics, 
   OrganizationDashboardData,
   OrganizationActivity,
   OrganizationProject,
-  OrganizationRole
+  OrganizationRole,
+  OrganizationStatus,
+  BillingPlan
 } from '@/types/organization';
+
+// Re-export the type with a consistent name
+export type OrganizationListItem = OrgListItem;
 
 // Type for the superadmin dashboard response
 interface SuperadminDashboardResponse {
@@ -78,7 +84,11 @@ interface RecentActivityItem {
 
 export const getOrganizationById = async (orgId: string): Promise<Organization> => {
   const response = await apiGet<Organization>(`/org/organizations/${orgId}/`);
-  return response;
+  return {
+    ...response,
+    status: (response.status as OrganizationStatus) || OrganizationStatus.INACTIVE,
+    plan: (response.plan as BillingPlan) || BillingPlan.FREE,
+  };
 };
 
 interface ApiDashboardResponse {
@@ -555,26 +565,59 @@ const mapRecentActivities = (activities: ApiRecentActivity[] = []): Organization
     };
   }).filter(Boolean) as OrganizationActivity[]; // Filter out any null entries
 };
+
 /**
  * Fetches organization details by ID
  */
+// Define a type for the API response to avoid circular references
+interface OrganizationApiResponse extends Omit<Organization, 'data'> {
+  // Add any additional fields that might come from the API
+  [key: string]: any;
+}
+
 export const fetchOrganizationDetails = async (orgId: string): Promise<Organization> => {
   try {
-    // Updated endpoint to match the backend API
-    const response = await apiGet<Organization>(`/org/organizations/${orgId}/`);
-    return response;
+    const response = await apiGet<OrganizationApiResponse>(`/org/organizations/${orgId}/`);
+    const orgData = response.data;
+    
+    // Create the organization object with proper typing
+    const organization: Organization = {
+      ...orgData,
+      status: orgData.status || OrganizationStatus.INACTIVE,
+      plan: orgData.plan || BillingPlan.FREE,
+      member_count: orgData.member_count || 0,
+      storage_used: orgData.storage_used || 0,
+      storage_limit: orgData.storage_limit || 0,
+      last_active: orgData.last_active || new Date().toISOString(),
+      owner: orgData.owner || '',
+      updated_at: orgData.updated_at || new Date().toISOString(),
+      // Set data to a copy of the org data without the data property to avoid circular references
+      data: Object.fromEntries(
+        Object.entries(orgData).filter(([key]) => key !== 'data')
+      ) as any
+    };
+    
+    return organization;
   } catch (error) {
     console.error('Error fetching organization details:', error);
     // Return a minimal organization object to prevent UI crashes
+    const now = new Date().toISOString();
     return {
       id: orgId,
-      name: 'Organization',
-      slug: 'organization',
+      name: 'Unknown Organization',
+      slug: 'unknown',
       is_active: true,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+      created_at: now,
+      updated_at: now,
       members_count: 0,
-      projects_count: 0
+      projects_count: 0,
+      status: OrganizationStatus.INACTIVE,
+      plan: BillingPlan.FREE,
+      member_count: 0,
+      storage_used: 0,
+      storage_limit: 0,
+      last_active: new Date().toISOString(),
+      owner: '',
     };
   }
 };
@@ -616,6 +659,133 @@ const mapTeamMembers = (members: ApiTeamMember[] = []): TeamMember[] => {
 /**
  * Fetches dashboard data for superadmin
  */
+/**
+ * Fetches a list of organizations with optional pagination and filtering
+ */
+export const fetchOrganizations = async ({
+  page = 1,
+  pageSize = 10,
+  search = '',
+  status = '',
+  sortBy = 'name',
+  sortOrder = 'asc'
+}: {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  status?: string;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
+} = {}): Promise<{
+  organizations: Organization[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}> => {
+  try {
+    const params = new URLSearchParams({
+      page: page.toString(),
+      page_size: pageSize.toString(),
+      ...(search && { search }),
+      ...(status && { status }),
+      ordering: `${sortOrder === 'desc' ? '-' : ''}${sortBy}`,
+    });
+
+    const response = await apiGet<{
+      count: number;
+      next: string | null;
+      previous: string | null;
+      results: Array<{
+        id: string;
+        name: string;
+        status: string;
+        plan: string;
+        member_count: number;
+        storage_used: number;
+        storage_limit: number;
+        last_active: string;
+        owner: string;
+        created_at: string;
+        updated_at: string;
+        is_active: boolean;
+        slug: string;
+      }>;
+    }>(`/org/organizations/?${params.toString()}`);
+
+    // Define the API response organization type
+    interface ApiOrganization {
+      id: string;
+      name: string;
+      slug?: string;
+      status?: string;
+      plan?: string;
+      member_count?: number;
+      storage_used?: number;
+      storage_limit?: number;
+      last_active?: string;
+      owner?: string;
+      created_at?: string;
+      updated_at?: string;
+      is_active?: boolean;
+      members_count?: number;
+      projects_count?: number;
+    }
+
+    // Map the API response to the Organization type
+    const organizations: Organization[] = response.results.map((org: ApiOrganization) => {
+      // Create a new object with all the required fields
+      const organization: Organization = {
+        id: org.id,
+        name: org.name,
+        slug: org.slug || org.name.toLowerCase().replace(/\s+/g, '-'),
+        is_active: org.is_active !== undefined ? org.is_active : true,
+        created_at: org.created_at || new Date().toISOString(),
+        updated_at: org.updated_at || new Date().toISOString(),
+        // These properties come from the API response but might be undefined
+        members_count: 'members_count' in org ? org.members_count : 0,
+        projects_count: 'projects_count' in org ? org.projects_count : 0,
+        status: (org.status as OrganizationStatus) || OrganizationStatus.INACTIVE,
+        plan: (org.plan as BillingPlan) || BillingPlan.FREE,
+        member_count: org.member_count || 0,
+        storage_used: org.storage_used || 0,
+        storage_limit: org.storage_limit || 0,
+        last_active: org.last_active || new Date().toISOString(),
+        owner: org.owner || '',
+        // Set data to a copy of the org data without the data property
+        data: {
+          id: org.id,
+          name: org.name,
+          slug: org.slug || org.name.toLowerCase().replace(/\s+/g, '-'),
+          is_active: org.is_active !== undefined ? org.is_active : true,
+          created_at: org.created_at || new Date().toISOString(),
+          updated_at: org.updated_at || new Date().toISOString(),
+          status: (org.status as OrganizationStatus) || OrganizationStatus.INACTIVE,
+          plan: (org.plan as BillingPlan) || BillingPlan.FREE,
+          member_count: org.member_count || 0,
+          storage_used: org.storage_used || 0,
+          storage_limit: org.storage_limit || 0,
+          last_active: org.last_active || new Date().toISOString(),
+          owner: org.owner || ''
+        }
+      };
+      
+      return organization;
+    });
+
+    return {
+      organizations,
+      total: response.count,
+      page: page,
+      pageSize: pageSize,
+      totalPages: Math.ceil(response.count / pageSize),
+    };
+  } catch (error) {
+    console.error('Error fetching organizations:', error);
+    throw error;
+  }
+};
+
 export const fetchDashboardData = async (): Promise<OrganizationDashboardData> => {
   try {
     console.log('Fetching superadmin dashboard data...');

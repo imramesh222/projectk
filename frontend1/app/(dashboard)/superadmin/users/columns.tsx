@@ -57,16 +57,26 @@ const getRoleBadgeVariant = (role: string) => {
   }
 };
 
-import { OrganizationMembership, OrganizationRole } from '@/types';
+import { Organization, OrganizationMembership, OrganizationRole } from '@/types';
 
-// Type for organization membership that can handle both string and OrganizationRole types
-type MembershipWithRoles = Omit<OrganizationMembership, 'roles'> & {
-  roles: (string | OrganizationRole)[];
-  organization: {
-    id: string;
-    name: string;
-    is_active: boolean;
-  };
+// Type guard to check if organization is an object
+const isOrganizationObject = (org: any): org is Organization => {
+  return org && typeof org === 'object' && 'id' in org && 'name' in org;
+};
+
+// Type guard to check if role is an OrganizationRole object
+const isOrganizationRole = (role: any): role is OrganizationRole => {
+  return role && typeof role === 'object' && 'id' in role && 'name' in role;
+};
+
+// Helper to get organization name safely
+const getOrganizationName = (org: Organization | string): string => {
+  return isOrganizationObject(org) ? org.name : org;
+};
+
+// Helper to get organization ID safely
+const getOrganizationId = (org: Organization | string): string => {
+  return isOrganizationObject(org) ? org.id : org;
 };
 
 export const columns: ColumnDef<UserWithDetails>[] = [
@@ -143,9 +153,13 @@ export const columns: ColumnDef<UserWithDetails>[] = [
     ),
     cell: ({ row }) => {
       const memberships = row.original.organization_memberships || [];
-      const [selectedOrgId, setSelectedOrgId] = useState(memberships[0]?.organization?.id || '');
+      const [selectedOrgId, setSelectedOrgId] = useState(
+        memberships[0] ? getOrganizationId(memberships[0].organization) : ''
+      );
       
-      const selectedMembership = memberships.find(m => m.organization?.id === selectedOrgId) || memberships[0];
+      const selectedMembership = memberships.find(m => 
+        getOrganizationId(m.organization) === selectedOrgId
+      ) || memberships[0];
       
       if (memberships.length === 0) {
         return <div className="text-sm text-gray-500">No organizations</div>;
@@ -154,7 +168,7 @@ export const columns: ColumnDef<UserWithDetails>[] = [
       if (memberships.length === 1) {
         return (
           <div className="font-medium">
-            {selectedMembership.organization?.name || '—'}
+            {selectedMembership ? getOrganizationName(selectedMembership.organization) : '—'}
           </div>
         );
       }
@@ -165,14 +179,15 @@ export const columns: ColumnDef<UserWithDetails>[] = [
           onChange={(e) => setSelectedOrgId(e.target.value)}
           className="bg-transparent border-none focus:ring-0 p-0 text-sm font-medium cursor-pointer"
         >
-          {memberships.map((membership) => (
-            <option 
-              key={membership.organization?.id} 
-              value={membership.organization?.id}
-            >
-              {membership.organization?.name}
-            </option>
-          ))}
+          {memberships.map((membership) => {
+            const orgId = getOrganizationId(membership.organization);
+            const orgName = getOrganizationName(membership.organization);
+            return (
+              <option key={orgId} value={orgId}>
+                {orgName}
+              </option>
+            );
+          })}
         </select>
       );
     },
@@ -186,25 +201,39 @@ export const columns: ColumnDef<UserWithDetails>[] = [
     ),
     cell: ({ row }) => {
       const memberships = row.original.organization_memberships || [];
-      const [selectedOrgId, setSelectedOrgId] = useState(memberships[0]?.organization?.id || '');
+      const [selectedOrgId, setSelectedOrgId] = useState(
+        memberships[0] ? getOrganizationId(memberships[0].organization) : ''
+      );
       
-      const selectedMembership = memberships.find(m => m.organization?.id === selectedOrgId) || memberships[0];
-      const roles = selectedMembership?.roles || [];
+      const selectedMembership = memberships.find(m => 
+        getOrganizationId(m.organization) === selectedOrgId
+      ) || memberships[0];
       
       if (!selectedMembership) {
         return <div className="text-sm text-gray-500">No role</div>;
       }
       
+      // Handle different role formats (string, string[], or OrganizationRole[])
+      const roles = Array.isArray(selectedMembership.roles) 
+        ? selectedMembership.roles 
+        : typeof selectedMembership.roles === 'string' 
+          ? [selectedMembership.roles]
+          : [];
+      
+      if (roles.length === 0) {
+        return <div className="text-sm text-gray-500">No roles</div>;
+      }
+      
       return (
         <div className="flex flex-wrap gap-1">
           {roles.map((role, index) => {
-            const roleStr = typeof role === 'string' ? role : role.name;
+            const roleName = isOrganizationRole(role) ? role.name : role;
             return (
               <span 
-                key={index}
+                key={`${selectedMembership.id}-${index}`}
                 className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200"
               >
-                {roleStr}
+                {roleName}
               </span>
             );
           })}
@@ -213,123 +242,11 @@ export const columns: ColumnDef<UserWithDetails>[] = [
     },
   },
   {
-    id: 'member_since',
-    header: ({ column }) => {
-      return (
-        <Button
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-          className="p-0 hover:bg-transparent font-semibold text-gray-700 dark:text-gray-200"
-        >
-          Member Since
-          <ChevronDown className="ml-2 h-4 w-4" />
-        </Button>
-      )
-    },
-    cell: ({ row }) => {
-      const memberships = row.original.organization_memberships || [];
-      const [selectedOrgId] = useState(memberships[0]?.organization?.id || '');
-      
-      const selectedMembership = memberships.find(m => m.organization?.id === selectedOrgId) || memberships[0];
-      const joinedAt = selectedMembership?.joined_at;
-      
-      if (!joinedAt) {
-        return <div className="text-sm text-gray-500">—</div>;
-      }
-      
-      return (
-        <div className="text-sm text-gray-600 dark:text-gray-400">
-          {new Date(joinedAt).toLocaleDateString()}
-        </div>
-      );
-    },
-  },
-  {
-    accessorKey: 'is_active',
-    header: 'Status',
-    cell: ({ row }: CellProps) => {
-      const isActive = row.getValue('is_active') as boolean;
-      return (
-        <Badge variant={isActive ? 'default' : 'secondary'} className="capitalize">
-          {isActive ? 'Active' : 'Inactive'}
-        </Badge>
-      );
-    },
-  },
-  {
     accessorKey: 'last_login',
     header: 'Last Login',
     cell: ({ row }: CellProps) => {
       const lastLogin = row.getValue('last_login');
-      if (!lastLogin) return 'Never';
-      
-      const date = new Date(lastLogin as string);
-      return formatDistanceToNow(date, { addSuffix: true });
-    },
-  },
-  {
-    accessorKey: 'organizations',
-    header: 'Organizations & Roles',
-    cell: ({ row }: CellProps) => {
-      const memberships: MembershipWithRoles[] = row.original.organization_memberships || [];
-      const isExpanded = row.getIsExpanded();
-      
-      if (!memberships.length) {
-        return <span className="text-muted-foreground">No organizations</span>;
-      }
-
-      return (
-        <div className="space-y-2">
-          <div 
-            className="flex items-center text-sm font-medium cursor-pointer hover:text-primary"
-            onClick={() => row.toggleExpanded()}
-          >
-            {isExpanded ? (
-              <ChevronDown className="h-4 w-4 mr-1" />
-            ) : (
-              <ChevronRight className="h-4 w-4 mr-1" />
-            )}
-            {memberships.length} organization{memberships.length !== 1 ? 's' : ''}
-          </div>
-          
-          {isExpanded && (
-            <div className="pl-5 space-y-2">
-              {memberships.map((membership: MembershipWithRoles) => (
-                <div key={membership.id} className="border-l-2 pl-3 py-1">
-                  <div className="flex items-center font-medium">
-                    <Building2 className="h-4 w-4 mr-2 text-muted-foreground" />
-                    {membership.organization.name}
-                    {!membership.organization.is_active && (
-                      <Badge variant="outline" className="ml-2 text-xs">Inactive</Badge>
-                    )}
-                  </div>
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {membership.roles.map((role, i) => {
-                      const roleName = typeof role === 'string' ? role : role.name;
-                      return (
-                        <Badge key={i} variant={getRoleBadgeVariant(roleName)}>
-                          {roleName}
-                        </Badge>
-                      );
-                    })}
-                  </div>
-                  <div className="text-xs text-muted-foreground mt-1">
-                    Joined {new Date(membership.joined_at).toLocaleDateString()}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      );
-    },
-  },
-  {
-    accessorKey: 'date_joined',
-    header: 'Member Since',
-    cell: ({ row }: CellProps) => {
-      const date = new Date(row.getValue('date_joined'));
-      return date.toLocaleDateString();
+      return lastLogin ? formatDistanceToNow(new Date(lastLogin), { addSuffix: true }) : 'Never';
     },
   },
   {

@@ -79,7 +79,21 @@ export interface OrganizationMetrics {
   }>;
 }
 
-export interface Organization {
+export enum OrganizationStatus {
+  ACTIVE = 'active',
+  INACTIVE = 'inactive',
+  TRIAL = 'trial',
+  SUSPENDED = 'suspended',
+}
+
+export enum BillingPlan {
+  FREE = 'free',
+  BASIC = 'basic',
+  PRO = 'pro',
+  ENTERPRISE = 'enterprise',
+}
+
+export interface OrganizationBase {
   id: string;
   name: string;
   slug: string;
@@ -89,6 +103,34 @@ export interface Organization {
   members_count?: number;
   projects_count?: number;
 }
+
+// Define a simpler type for the data property to avoid circular references
+type OrganizationData = Omit<Organization, 'data'>;
+
+export interface Organization extends OrganizationBase {
+  data?: OrganizationData; // Make data optional to avoid circular references
+  description?: string;
+  logo_url?: string;
+  website?: string;
+  contact_email?: string;
+  phone_number?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  country?: string;
+  postal_code?: string;
+  timezone?: string;
+  settings?: Record<string, any>;
+  status: OrganizationStatus;
+  plan: BillingPlan;
+  member_count: number;
+  storage_used: number;
+  storage_limit: number;
+  last_active: string;
+  owner: string;
+}
+
+export type OrganizationListItem = Organization;
 
 export interface OrganizationDashboardData {
   metrics: OrganizationMetrics;
