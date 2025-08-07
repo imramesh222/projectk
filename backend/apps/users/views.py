@@ -20,7 +20,7 @@ from django.utils import timezone
 from django.db.models import Q
 
 from .serializers import UserSerializer
-from apps.organization.models import Organization, AdminAssignment
+from apps.organization.models import Organization, OrganizationMember, OrganizationRoleChoices
 from .permissions import (
     IsSuperAdmin, 
     IsOrganizationAdmin, 

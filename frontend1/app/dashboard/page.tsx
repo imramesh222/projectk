@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { getCurrentUserWithFallback, getAccessToken } from '@/lib/auth';
 import { apiGet } from '@/lib/api-client';
 import { Skeleton } from '@/components/ui/skeleton';
-import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
+import { RoleBasedLayout } from '@/components/dashboard/RoleBasedLayout';
 
 // Define types for organization memberships
 interface OrganizationRole {
@@ -240,8 +240,8 @@ export default function DashboardPage() {
 
   if (isLoading) {
     return (
-      <DashboardLayout userRole={userRole}>
-        <div className="max-w-7xl mx-auto p-6">
+      <RoleBasedLayout>
+        <div className="p-6 max-w-7xl mx-auto p-6">
           <Skeleton className="h-10 w-64 mb-8" />
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             {[1, 2, 3, 4, 5, 6].map((i) => (
@@ -249,7 +249,7 @@ export default function DashboardPage() {
             ))}
           </div>
         </div>
-      </DashboardLayout>
+      </RoleBasedLayout>
     );
   }
   

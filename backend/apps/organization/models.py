@@ -23,7 +23,7 @@ class OrganizationMember(models.Model):
     role = models.CharField(
         max_length=32,
         choices=OrganizationRoleChoices.choices,
-        default=OrganizationRoleChoices.DEVELOPER
+        default=OrganizationRoleChoices.USER
     )
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -62,64 +62,4 @@ class Organization(models.Model):
             self.slug = slugify(self.name)
         super().save(*args, **kwargs)
 
-# Deprecated - Will be removed after migration to OrganizationMember
-class AdminAssignment(models.Model):
-    """
-    Deprecated - Will be removed after migration to OrganizationMember
-    Tracks admin assignments to organizations
-    """
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='admin_assignments')
-    admin = models.OneToOneField(User, on_delete=models.CASCADE, related_name='admin_assignments')
-    is_active = models.BooleanField(default=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    deactivated_at = models.DateTimeField(null=True, blank=True)
-
-    def __str__(self):
-        return f"{self.admin.username} -> {self.organization.name}"
-        
-    class Meta:
-        ordering = ['-created_at']
-
-# Deprecated - Will be removed after migration to OrganizationMember
-class Salesperson(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='salesperson_role')
-    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='salespersons')
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self):
-        return f"{self.user.username} at {self.organization.name}"
-
-# Deprecated - Will be removed after migration to OrganizationMember
-class Verifier(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='verifier_role')
-    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='verifiers')
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self):
-        return f"{self.user.username} at {self.organization.name}"
-
-class ProjectManager(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='project_manager_role')
-    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='project_managers')
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self):
-        return self.user.username
-
-class Developer(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='developer_role')
-    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='developers')
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self):
-        return self.user.username
-
-class Support(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='support_role')
-    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='support_staff')
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self):
-        return self.user.username
+# OrganizationMember model handles all organization roles now

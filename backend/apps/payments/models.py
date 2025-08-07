@@ -2,7 +2,7 @@ import uuid
 from django.db import models
 from django.utils import timezone
 from apps.clients.models import Client
-from apps.organization.models import Verifier
+from apps.organization.models import OrganizationMember
 from apps.projects.models import Project
 
 class Payment(models.Model):
@@ -71,7 +71,7 @@ class Payment(models.Model):
         help_text="Whether the payment has been verified"
     )
     verified_by = models.ForeignKey(
-        Verifier,
+        OrganizationMember,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,

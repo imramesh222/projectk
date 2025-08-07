@@ -34,7 +34,8 @@ const getNavigationForRole = (role: UserRole) => {
     { name: 'Overview', href: `/${role === 'superadmin' ? 'superadmin' : role}`, icon: Home, current: true },
   ];
 
-  const roleSpecificNavigation: Record<UserRole, any[]> = {
+  // Add a default empty array for any role not explicitly defined
+  const roleSpecificNavigation: Record<string, any[]> = {
     superadmin: [
       { name: 'Users', href: '/superadmin/users', icon: Users, current: false },
       { name: 'Organizations', href: '/superadmin/organizations', icon: Building2, current: false },
@@ -84,9 +85,18 @@ const getNavigationForRole = (role: UserRole) => {
       { name: 'History', href: '/history', icon: FileText, current: false },
       { name: 'Statistics', href: '/stats', icon: BarChart3, current: false },
     ],
+    // Default navigation for users with 'user' role or any other undefined role
+    user: [
+      { name: 'Dashboard', href: '/dashboard', icon: Home, current: true },
+      { name: 'Profile', href: '/profile', icon: UserCheck, current: false },
+      { name: 'My Tasks', href: '/my-tasks', icon: CheckSquare, current: false },
+      { name: 'Calendar', href: '/calendar', icon: Calendar, current: false },
+    ],
   };
 
-  return [...baseNavigation, ...roleSpecificNavigation[role]];
+  // Fallback to empty array if role doesn't exist in the mapping
+  const roleNav = roleSpecificNavigation[role] || [];
+  return [...baseNavigation, ...roleNav];
 };
 
 export function RoleBasedLayout({ children }: RoleBasedLayoutProps) {

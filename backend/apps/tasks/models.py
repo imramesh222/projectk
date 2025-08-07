@@ -2,7 +2,7 @@ import uuid
 from django.db import models
 from django.utils import timezone
 from model_utils import FieldTracker
-from apps.organization.models import Developer
+from apps.organization.models import OrganizationMember
 from apps.projects.models import Project
 
 class Task(models.Model):
@@ -36,7 +36,7 @@ class Task(models.Model):
         help_text="Task priority level"
     )
     developer = models.ForeignKey(
-        Developer, 
+        OrganizationMember, 
         on_delete=models.SET_NULL, 
         null=True, 
         blank=True,

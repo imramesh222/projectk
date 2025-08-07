@@ -1,7 +1,7 @@
 import uuid
 from django.db import models
 from django.utils import timezone
-from apps.organization.models import Salesperson, Verifier, ProjectManager
+from apps.organization.models import OrganizationMember, OrganizationRoleChoices
 from apps.clients.models import Client
 
 class Project(models.Model):
@@ -49,28 +49,32 @@ class Project(models.Model):
         related_name='projects',
         help_text="Client who owns this project"
     )
-    created_by = models.ForeignKey(
-        Salesperson, 
-        on_delete=models.SET_NULL, 
-        null=True, 
-        related_name='created_projects',
-        help_text="Salesperson who created this project"
+    salesperson = models.ForeignKey(
+        OrganizationMember,
+        on_delete=models.SET_NULL,
+        related_name='projects',
+        null=True,
+        blank=True,
+        limit_choices_to={'role': OrganizationRoleChoices.SALESPERSON},
+        help_text="Salesperson responsible for this project"
+    )
+    project_manager = models.ForeignKey(
+        OrganizationMember,
+        on_delete=models.SET_NULL,
+        related_name='managed_projects',
+        null=True,
+        blank=True,
+        limit_choices_to={'role': OrganizationRoleChoices.PROJECT_MANAGER},
+        help_text="Project manager overseeing this project"
     )
     verifier = models.ForeignKey(
-        Verifier, 
-        on_delete=models.SET_NULL, 
+        OrganizationMember,
+        on_delete=models.SET_NULL,
+        related_name='verifier',
         null=True,
         blank=True,
-        related_name='verified_projects',
-        help_text="Verifier assigned to this project"
-    )
-    manager = models.ForeignKey(
-        ProjectManager, 
-        on_delete=models.SET_NULL, 
-        null=True,
-        blank=True,
-        related_name='managed_projects',
-        help_text="Project manager assigned to this project"
+        limit_choices_to={'role': OrganizationRoleChoices.VERIFIER},
+        help_text="Verifier responsible for this project"
     )
     is_verified = models.BooleanField(
         default=False,

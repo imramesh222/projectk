@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { Skeleton } from '@/components/ui/skeleton';
-import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
+import { RoleBasedLayout } from '@/components/dashboard/RoleBasedLayout';
 
 interface OrganizationData {
   id: string;
@@ -76,7 +76,7 @@ export default function OrganizationPage() {
 
   if (isLoading) {
     return (
-      <DashboardLayout userRole={userRole}>
+      <RoleBasedLayout>
         <div className="p-6">
           <Skeleton className="h-8 w-48 mb-6" />
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
@@ -85,38 +85,38 @@ export default function OrganizationPage() {
             ))}
           </div>
         </div>
-      </DashboardLayout>
+      </RoleBasedLayout>
     );
   }
 
   if (error) {
     return (
-      <DashboardLayout userRole={userRole}>
+      <RoleBasedLayout>
         <div className="p-6">
           <div className="rounded-md bg-red-50 p-4">
             <h3 className="text-sm font-medium text-red-800">Error</h3>
             <p className="mt-2 text-sm text-red-700">{error}</p>
           </div>
         </div>
-      </DashboardLayout>
+      </RoleBasedLayout>
     );
   }
 
   if (!org) {
     return (
-      <DashboardLayout userRole={userRole}>
+      <RoleBasedLayout>
         <div className="p-6">
           <div className="rounded-md bg-yellow-50 p-4">
             <h3 className="text-sm font-medium text-yellow-800">Organization Not Found</h3>
             <p className="mt-2 text-sm text-yellow-700">The requested organization could not be found or you don't have permission to view it.</p>
           </div>
         </div>
-      </DashboardLayout>
+      </RoleBasedLayout>
     );
   }
 
   return (
-    <DashboardLayout userRole={userRole}>
+    <RoleBasedLayout>
       <div className="p-6">
         <header className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{org.name}</h1>
@@ -131,6 +131,6 @@ export default function OrganizationPage() {
           <OrganizationDashboard orgId={org.id} />
         )}
       </div>
-    </DashboardLayout>
+    </RoleBasedLayout>
   );
 }
