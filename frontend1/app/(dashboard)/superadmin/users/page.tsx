@@ -1,6 +1,6 @@
 'use client';
 
-import { UserManagementSection } from '@/components/dashboard/superadmin/sections/UserManagementSection';
+import UserManagementSection from '@/components/dashboard/superadmin/sections/UserManagementSection';
 
 export default function SuperAdminUsersPage() {
   return (

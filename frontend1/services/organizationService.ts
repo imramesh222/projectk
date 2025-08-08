@@ -1,4 +1,4 @@
-import { apiGet } from './apiService';
+import { apiGet, apiPost } from './apiService';
 import { 
   Organization, 
   OrganizationListItem as OrgListItem,
@@ -627,7 +627,7 @@ export const fetchOrganizationDetails = async (orgId: string): Promise<Organizat
  */
 export const fetchOrganizationMetrics = async (orgId: string): Promise<OrganizationMetrics> => {
   try {
-    const response = await apiGet<{ metrics: OrganizationMetrics }>(`/organizations/${orgId}/metrics/`);
+    const response = await apiGet<{ metrics: OrganizationMetrics }>(`/org/organizations/${orgId}/metrics/`);
     return response.metrics;
   } catch (error) {
     console.error('Error fetching organization metrics:', error);
@@ -786,6 +786,44 @@ export const fetchOrganizations = async ({
   }
 };
 
+/**
+ * Creates a new organization
+ */
+export const createOrganization = async (data: {
+  name: string;
+  email: string; // Add email field to the type definition
+  slug: string;
+  status: 'active' | 'trial' | 'suspended' | 'inactive';
+  plan: 'free' | 'basic' | 'pro' | 'enterprise';
+  max_users: number;
+  max_storage: number;
+  description?: string;
+  phone_number?: string; // Add phone_number as optional
+  website?: string;      // Add website as optional
+}): Promise<Organization> => {
+  try {
+    // Use the apiPost utility which handles authentication, CSRF tokens, and error handling
+    return await apiPost<Organization>('/org/organizations/', {
+      name: data.name,
+      email: data.email, // Include email in the request
+      slug: data.slug,
+      status: data.status,
+      plan: data.plan,
+      max_users: data.max_users,
+      max_storage: data.max_storage,
+      description: data.description || '',
+      phone_number: data.phone_number || '',
+      website: data.website || '',
+    });
+  } catch (error) {
+    console.error('Error creating organization:', error);
+    throw new Error('Failed to create organization');
+  }
+};
+
+/**
+ * Fetches dashboard data for the organization
+ */
 export const fetchDashboardData = async (): Promise<OrganizationDashboardData> => {
   try {
     console.log('Fetching superadmin dashboard data...');

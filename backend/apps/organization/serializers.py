@@ -8,6 +8,27 @@ from apps.users.serializers import UserSerializer
 
 class OrganizationSerializer(serializers.ModelSerializer):
     """Basic organization serializer for list and create operations."""
+    
+    def __init__(self, *args, **kwargs):
+        import logging
+        self.logger = logging.getLogger(__name__)
+        self.logger.info("Initializing OrganizationSerializer")
+        super().__init__(*args, **kwargs)
+    
+    def validate(self, data):
+        self.logger.info(f"Validating organization data: {data}")
+        return super().validate(data)
+    
+    def create(self, validated_data):
+        self.logger.info(f"Creating organization with data: {validated_data}")
+        try:
+            instance = super().create(validated_data)
+            self.logger.info(f"Successfully created organization: {instance.id}")
+            return instance
+        except Exception as e:
+            self.logger.error(f"Error creating organization: {str(e)}")
+            raise
+    
     class Meta:
         model = Organization
         fields = [
@@ -18,7 +39,15 @@ class OrganizationSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'created_at', 'updated_at', 'slug']
         extra_kwargs = {
             'name': {'required': True},
-            'email': {'required': True},
+            'email': {
+                'required': True,
+                'allow_blank': False,
+                'error_messages': {
+                    'required': 'Email is required',
+                    'blank': 'Email cannot be blank',
+                    'invalid': 'Enter a valid email address'
+                }
+            },
         }
 
 

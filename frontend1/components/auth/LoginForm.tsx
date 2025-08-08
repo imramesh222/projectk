@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@/hooks/use-toast";
 import { isAuthenticated, getCurrentUserWithFallback } from "@/lib/auth";
 import { API_URL } from "@/constant";
 import { loginSchema, LoginSchemaType } from "@/schemas/loginSchema";
@@ -117,7 +117,7 @@ const LoginForm = () => {
         toast({
           title: "Error",
           description: "Could not determine dashboard path",
-          type: "destructive"
+          variant: "destructive"
         });
         return;
       }
@@ -163,7 +163,7 @@ const LoginForm = () => {
       toast({
         title: "Error",
         description: errorMessage,
-        type: "destructive",
+        variant: "destructive"
       });
     } finally {
       setIsLoading(false);

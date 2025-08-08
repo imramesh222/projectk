@@ -2,7 +2,7 @@
 
 import './globals.css';
 import { Inter } from 'next/font/google';
-import { ToastProvider, ToastContainer } from '@/components/ui/use-toast';
+import { ToastProvider, Toaster } from '@/hooks/use-toast';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 // Create a client
@@ -25,7 +25,7 @@ export default function RootLayout({
         <QueryClientProvider client={queryClient}>
           <ToastProvider>
             {children}
-            <ToastContainer />
+            <Toaster />
           </ToastProvider>
         </QueryClientProvider>
       </body>

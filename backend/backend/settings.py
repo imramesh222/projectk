@@ -193,16 +193,33 @@ AUTH_USER_MODEL = 'users.User'
 EMAIL_ENABLED = os.getenv('EMAIL_ENABLED', 'True') == 'True'
 # Enable/disable welcome emails
 SEND_WELCOME_EMAIL = os.getenv('SEND_WELCOME_EMAIL', 'True') == 'True'
-# Always use SMTP backend for sending real emails
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
-EMAIL_PORT = int(os.getenv('EMAIL_PORT', 587))
-EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True') == 'True'
-EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', 'imrameshrawat@gmail.com')
-EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', 'pfen jzti qjyf dxbh')
-DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'imrameshrawat@gmail.com')
-REPLY_TO_EMAIL = os.getenv('REPLY_TO_EMAIL', 'noreply@example.com')
-SERVER_EMAIL = os.getenv('SERVER_EMAIL', 'noreply@example.com')
+
+# Email backend settings
+if DEBUG and os.getenv('USE_CONSOLE_EMAIL_BACKEND', 'False') == 'True':
+    # Use console backend for development
+    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+    print("\033[93m\nUsing console email backend - emails will be printed to the console\033[0m")
+else:
+    # Use SMTP backend for production
+    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+    EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
+    EMAIL_PORT = int(os.getenv('EMAIL_PORT', '587'))
+    EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True') == 'True'
+    EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
+    EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
+    
+    # Validate required email settings
+    if not EMAIL_HOST_USER or not EMAIL_HOST_PASSWORD:
+        print("\033[91m\nWARNING: Email settings are not properly configured. "
+              "Set EMAIL_HOST_USER and EMAIL_HOST_PASSWORD environment variables.\033[0m")
+        if DEBUG:
+            print("Falling back to console email backend for development.")
+            EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+
+# Email sender settings
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER or 'noreply@example.com')
+REPLY_TO_EMAIL = os.getenv('REPLY_TO_EMAIL', DEFAULT_FROM_EMAIL)
+SERVER_EMAIL = os.getenv('SERVER_EMAIL', DEFAULT_FROM_EMAIL)
 
 # Frontend URL for email links
 FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:3000')

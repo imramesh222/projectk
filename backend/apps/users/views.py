@@ -204,13 +204,67 @@ class UserViewSet(viewsets.ModelViewSet):
     
     def create(self, request, *args, **kwargs):
         """
-        Disable default user creation.
-        Users should register through /users/register/ endpoint instead.
+        Handle user creation with auto-generated password and welcome email.
+        Only accessible by superadmins.
         """
-        return Response(
-            {"detail": "Use /users/register/ endpoint for user registration"},
-            status=status.HTTP_405_METHOD_NOT_ALLOWED
-        )
+        # Only allow superadmins to create users through this endpoint
+        if not request.user.is_authenticated or request.user.role != 'superadmin':
+            return Response(
+                {"detail": "Permission denied. Only superadmins can create users through this endpoint."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+            
+        # Process the request data
+        data = request.data.copy()
+        
+        # Set auto_generate_password to True and ensure send_welcome_email is set
+        data['auto_generate_password'] = True
+        data['send_welcome_email'] = True
+        
+        # Create the user using the serializer
+        serializer = self.get_serializer(data=data)
+        serializer.is_valid(raise_exception=True)
+        
+        try:
+            # Disable the default welcome email from signals
+            with transaction.atomic():
+                # Temporarily set a flag to prevent duplicate emails
+                if not hasattr(settings, 'SUPPRESS_WELCOME_EMAIL'):
+                    settings.SUPPRESS_WELCOME_EMAIL = True
+                
+                # Save the user and get the generated password from the serializer
+                user = serializer.save()
+                
+                # Get the plain text password from the serializer's validated_data
+                plain_password = serializer.validated_data.get('password')
+                
+                # Send welcome email with the plain text password
+                from .tasks import send_welcome_email_task
+                send_welcome_email_task.delay(user.id, password=plain_password)
+                
+                # Clear the suppression flag
+                settings.SUPPRESS_WELCOME_EMAIL = False
+            
+            # Return success response
+            return Response(
+                {
+                    "detail": "User created successfully",
+                    "user_id": str(user.id),
+                    "email_sent": True
+                },
+                status=status.HTTP_201_CREATED
+            )
+            
+        except Exception as e:
+            # Ensure we clear the suppression flag even if there's an error
+            if hasattr(settings, 'SUPPRESS_WELCOME_EMAIL'):
+                settings.SUPPRESS_WELCOME_EMAIL = False
+                
+            logger.error(f"Error creating user: {str(e)}", exc_info=True)
+            return Response(
+                {"detail": f"Error creating user: {str(e)}"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
         
     def get_queryset(self):
         """

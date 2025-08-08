@@ -69,7 +69,16 @@ export async function apiClient<T>(
 
   // Ensure we don't have double slashes in the URL
   const normalizedEndpoint = endpoint.startsWith('/') ? endpoint.slice(1) : endpoint;
-  const url = `${API_URL}/${normalizedEndpoint}`;
+  const baseUrl = API_URL.endsWith('/') ? API_URL.slice(0, -1) : API_URL;
+  const url = `${baseUrl}/${normalizedEndpoint}`;
+  
+  console.log('API URL Construction:', {
+    originalEndpoint: endpoint,
+    normalizedEndpoint,
+    baseUrl,
+    finalUrl: url,
+    method
+  });
   
   console.log(`Making ${method} request to:`, url);
   const response = await fetch(url, config);

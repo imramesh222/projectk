@@ -91,7 +91,7 @@ import {
 // Import section components
 import { SystemHealthSection } from './sections/SystemHealthSection';
 import { SystemSettingsSection } from './sections/SystemSettingsSection';
-import { UserManagementSection } from './sections/UserManagementSection';
+import UserManagementSection from './sections/UserManagementSection';
 import { UserStatisticsSection } from './sections/UserStatisticsSection';
 import { OrganizationManagementSection } from './sections/OrganizationManagementSection';
 import { OrganizationMetricsSection } from './sections/OrganizationMetricsSection';

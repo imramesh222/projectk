@@ -36,6 +36,18 @@ class OrganizationMember(models.Model):
     def __str__(self):
         return f"{self.user.username} ({self.get_role_display()}) at {self.organization.name}"
 
+class OrganizationStatusChoices(models.TextChoices):
+    ACTIVE = 'active', _('Active')
+    TRIAL = 'trial', _('Trial')
+    SUSPENDED = 'suspended', _('Suspended')
+    INACTIVE = 'inactive', _('Inactive')
+
+class OrganizationPlanChoices(models.TextChoices):
+    FREE = 'free', _('Free')
+    BASIC = 'basic', _('Basic')
+    PRO = 'pro', _('Pro')
+    ENTERPRISE = 'enterprise', _('Enterprise')
+
 class Organization(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=255)
@@ -50,6 +62,27 @@ class Organization(models.Model):
     state = models.CharField(max_length=100, blank=True, null=True)
     country = models.CharField(max_length=100, blank=True, null=True)
     postal_code = models.CharField(max_length=20, blank=True, null=True)
+    
+    # New fields to match frontend
+    status = models.CharField(
+        max_length=20,
+        choices=OrganizationStatusChoices.choices,
+        default=OrganizationStatusChoices.ACTIVE
+    )
+    plan = models.CharField(
+        max_length=20,
+        choices=OrganizationPlanChoices.choices,
+        default=OrganizationPlanChoices.FREE
+    )
+    max_users = models.PositiveIntegerField(
+        default=10,
+        help_text='Maximum number of users allowed for this organization'
+    )
+    max_storage = models.PositiveIntegerField(
+        default=10,
+        help_text='Maximum storage in GB allowed for this organization'
+    )
+    
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

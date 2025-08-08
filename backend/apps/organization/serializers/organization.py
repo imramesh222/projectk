@@ -15,7 +15,8 @@ class OrganizationSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'name', 'description', 'website', 'logo',
             'is_active', 'created_at', 'updated_at', 'phone_number',
-            'email', 'address', 'city', 'state'
+            'email', 'address', 'city', 'state', 'country', 'postal_code',
+            'status', 'plan', 'max_users', 'max_storage'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
 
@@ -46,7 +47,17 @@ class OrganizationCreateSerializer(OrganizationSerializer):
     Serializer for creating a new organization
     """
     class Meta(OrganizationSerializer.Meta):
-        fields = ['name', 'description', 'website', 'logo', 'phone_number', 'email', 'address', 'city', 'state']
+        fields = [
+            'name', 'description', 'website', 'logo', 'phone_number', 
+            'email', 'address', 'city', 'state', 'country', 'postal_code',
+            'status', 'plan', 'max_users', 'max_storage'
+        ]
+        extra_kwargs = {
+            'max_users': {'required': True},
+            'max_storage': {'required': True},
+            'status': {'required': True},
+            'plan': {'required': True}
+        }
     
     def create(self, validated_data):
         # Create the organization

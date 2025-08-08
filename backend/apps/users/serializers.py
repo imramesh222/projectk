@@ -38,10 +38,23 @@ class UserSerializer(serializers.ModelSerializer):
     """
     password = serializers.CharField(
         write_only=True,
-        required=True,
-        style={'input_type': 'password', 'placeholder': 'Password'},
-        help_text="Required. Must be at least 8 characters long.",
+        required=False,
+        allow_blank=True,
+        style={'input_type': 'password', 'placeholder': 'Leave blank to auto-generate'},
+        help_text="Optional. If blank, a secure password will be auto-generated.",
         min_length=8
+    )
+    auto_generate_password = serializers.BooleanField(
+        write_only=True,
+        required=False,
+        default=False,
+        help_text="If True, a secure password will be auto-generated and the password field will be ignored."
+    )
+    send_welcome_email = serializers.BooleanField(
+        write_only=True,
+        required=False,
+        default=False,
+        help_text="If True, a welcome email with login credentials will be sent to the user."
     )
     organization_memberships = serializers.SerializerMethodField()
     
@@ -50,7 +63,8 @@ class UserSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'username', 'email', 'first_name', 'last_name',
             'role', 'is_active', 'date_joined', 'last_login', 
-            'password', 'organization_memberships'
+            'password', 'organization_memberships',
+            'auto_generate_password', 'send_welcome_email'
         ]
         read_only_fields = ['id', 'date_joined', 'last_login', 'is_active', 'organization_memberships']
         extra_kwargs = {
@@ -85,11 +99,40 @@ class UserSerializer(serializers.ModelSerializer):
     
     def create(self, validated_data):
         """Create and return a new user with encrypted password."""
+        # Extract password-related fields
         password = validated_data.pop('password', None)
+        auto_generate = validated_data.pop('auto_generate_password', False)
+        send_email = validated_data.pop('send_welcome_email', False)
+        
+        # Generate a secure password if requested or if no password provided
+        if auto_generate or not password:
+            from django.utils.crypto import get_random_string
+            import string
+            # Generate a 12-character password with letters, digits, and special chars
+            password = get_random_string(
+                12, 
+                string.ascii_letters + string.digits + '!@#$%^&*'
+            )
+            # Ensure the generated password meets complexity requirements
+            if not any(c.isupper() for c in password):
+                password += string.ascii_uppercase[0]
+            if not any(c.islower() for c in password):
+                password += string.ascii_lowercase[0]
+            if not any(c.isdigit() for c in password):
+                password += string.digits[0]
+            if not any(c in '!@#$%^&*' for c in password):
+                password += '!'
+        
+        # Create the user with the password
         user = User.objects.create_user(**validated_data)
-        if password:
-            user.set_password(password)
-            user.save()
+        user.set_password(password)
+        user.save()
+        
+        # Send welcome email if requested
+        if send_email:
+            from .tasks import send_welcome_email_task
+            send_welcome_email_task.delay(user.id, password=password)
+            
         return user
     
     def update(self, instance, validated_data):

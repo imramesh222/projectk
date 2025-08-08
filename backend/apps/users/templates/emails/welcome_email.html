@@ -55,10 +55,27 @@
         <ul>
             <li><strong>Username:</strong> {{ user.username }}</li>
             <li><strong>Email:</strong> {{ user.email }}</li>
-            <li><strong>Role:</strong> {{ user.get_role_display|default:'User' }}</li>
+            <li><strong>Role:</strong> 
+                {% if user.role %}
+                    {{ user.role|title }}
+                {% else %}
+                    User
+                {% endif %}
+            </li>
+            {% if has_password %}
+            <li><strong>Password:</strong> {{ password }}</li>
+            {% endif %}
         </ul>
         
-        <p>You can now log in to your account using your credentials:</p>
+        <p>You can now log in to your account using your {% if has_password %}the credentials above{% else %}your chosen password{% endif %}:</p>
+        
+        {% if has_password %}
+        <div style="background-color: #f8f9fa; border-left: 4px solid #4a6fdc; padding: 12px 20px; margin: 15px 0;">
+            <p style="margin: 0;">
+                <strong>Important:</strong> For security reasons, please change your password after your first login.
+            </p>
+        </div>
+        {% endif %}
         <p style="text-align: center;">
             <a href="{{ login_url }}" class="button">Log In to Your Account</a>
         </p>
