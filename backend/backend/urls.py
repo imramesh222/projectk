@@ -20,7 +20,7 @@ from rest_framework import permissions
 from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
 from django.conf import settings
-from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
+from django.views.decorators.csrf import csrf_exempt
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView, TokenVerifyView
 from rest_framework.response import Response
 from rest_framework import status
@@ -88,11 +88,6 @@ def cors_options_view(request, *args, **kwargs):
     response['Access-Control-Max-Age'] = '86400'
     return response
 
-# CSRF Token View
-@ensure_csrf_cookie
-def get_csrf_token(request):
-    return JsonResponse({'detail': 'CSRF cookie set'})
-
 # Swagger API Info
 swagger_info = openapi.Info(
     title="SAMPLE PROJECT API",
@@ -133,9 +128,6 @@ urlpatterns = [
     path('swagger<format>/', schema_view.without_ui(cache_timeout=0), name='schema-json'),
     path('swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
     path('redoc/', schema_view.with_ui('redoc', cache_timeout=0), name='schema-redoc'),
-    
-    # CORS and CSRF endpoints
-    path('api/v1/csrf/', get_csrf_token, name='get-csrf'),
     
     # JWT Authentication
     path('api/v1/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),

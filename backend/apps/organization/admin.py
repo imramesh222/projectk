@@ -4,7 +4,7 @@ from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.contrib.auth.models import Group
 from django.db.models import Q
 from django.utils.html import format_html
-from .models import Organization, OrganizationMember, OrganizationRoleChoices
+from .models import Organization, OrganizationMember, OrganizationRoleChoices, SubscriptionPlan, PlanDuration, OrganizationSubscription
 
 User = get_user_model()
 
@@ -107,6 +107,26 @@ class OrganizationAdmin(admin.ModelAdmin):
     def member_count(self, obj):
         return obj.members.count()
     member_count.short_description = 'Members'
+
+# Subscription Admin
+class PlanDurationInline(admin.TabularInline):
+    model = PlanDuration
+    extra = 1
+    fields = ('duration_months', 'price', 'discount_percentage', 'is_default', 'is_active')
+
+@admin.register(SubscriptionPlan)
+class SubscriptionPlanAdmin(admin.ModelAdmin):
+    list_display = ('name', 'description', 'is_active', 'created_at')
+    list_filter = ('is_active', 'created_at')
+    search_fields = ('name', 'description')
+    inlines = [PlanDurationInline]
+
+@admin.register(OrganizationSubscription)
+class OrganizationSubscriptionAdmin(admin.ModelAdmin):
+    list_display = ('organization', 'plan_duration', 'is_active', 'auto_renew', 'start_date', 'end_date')
+    list_filter = ('is_active', 'auto_renew', 'start_date', 'end_date')
+    search_fields = ('organization__name', 'plan_duration__plan__name')
+    list_select_related = ('organization', 'plan_duration__plan')
 
 # Register models
 admin.site.register(Organization, OrganizationAdmin)

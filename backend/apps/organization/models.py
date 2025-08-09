@@ -42,11 +42,84 @@ class OrganizationStatusChoices(models.TextChoices):
     SUSPENDED = 'suspended', _('Suspended')
     INACTIVE = 'inactive', _('Inactive')
 
-class OrganizationPlanChoices(models.TextChoices):
-    FREE = 'free', _('Free')
-    BASIC = 'basic', _('Basic')
-    PRO = 'pro', _('Pro')
-    ENTERPRISE = 'enterprise', _('Enterprise')
+class SubscriptionPlan(models.Model):
+    """
+    Defines different subscription plans (Basic, Pro, Enterprise)
+    All plans have the same features, only duration and pricing vary
+    """
+    name = models.CharField(max_length=100)  # e.g., "Basic", "Pro", "Enterprise"
+    description = models.TextField()
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.name
+
+
+class PlanDuration(models.Model):
+    """
+    Defines different duration options for each plan
+    """
+    plan = models.ForeignKey(SubscriptionPlan, on_delete=models.CASCADE, related_name='durations')
+    duration_months = models.PositiveIntegerField(help_text="Duration in months (e.g., 1, 3, 6, 12)")
+    price = models.DecimalField(max_digits=10, decimal_places=2)
+    is_active = models.BooleanField(default=True)
+    discount_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    is_default = models.BooleanField(
+        default=False,
+        help_text="Whether this is the default duration shown for the plan"
+    )
+
+    class Meta:
+        ordering = ['duration_months']
+        unique_together = ['plan', 'duration_months']
+
+    def __str__(self):
+        return f"{self.plan.name} - {self.duration_months} months"
+
+
+class OrganizationSubscription(models.Model):
+    """
+    Tracks an organization's subscription to a plan
+    """
+    organization = models.OneToOneField(
+        'Organization',
+        on_delete=models.CASCADE,
+        related_name='subscription'
+    )
+    plan_duration = models.ForeignKey(
+        PlanDuration,
+        on_delete=models.PROTECT,
+        related_name='subscriptions'
+    )
+    start_date = models.DateField()
+    end_date = models.DateField()
+    is_active = models.BooleanField(default=True)
+    auto_renew = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def save(self, *args, **kwargs):
+        # Calculate end_date if not provided
+        if self.start_date and not self.end_date and self.plan_duration:
+            from datetime import timedelta
+            from django.utils import timezone
+            
+            if not self.start_date:
+                self.start_date = timezone.now().date()
+                
+            self.end_date = self.start_date + timedelta(days=30 * self.plan_duration.duration_months)
+        
+        super().save(*args, **kwargs)
+
+    @property
+    def days_remaining(self):
+        from django.utils import timezone
+        return (self.end_date - timezone.now().date()).days if self.end_date else 0
+
+    def __str__(self):
+        return f"{self.organization.name} - {self.plan_duration.plan.name} (Until {self.end_date})"
 
 class Organization(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -69,10 +142,12 @@ class Organization(models.Model):
         choices=OrganizationStatusChoices.choices,
         default=OrganizationStatusChoices.ACTIVE
     )
-    plan = models.CharField(
+    # Legacy plan field (for migration purposes)
+    legacy_plan = models.CharField(
         max_length=20,
-        choices=OrganizationPlanChoices.choices,
-        default=OrganizationPlanChoices.FREE
+        blank=True,
+        null=True,
+        help_text="Legacy plan field for migration. Use subscription relation instead."
     )
     max_users = models.PositiveIntegerField(
         default=10,

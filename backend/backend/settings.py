@@ -7,18 +7,19 @@ from dotenv import load_dotenv
 # Load environment variables from .env file
 load_dotenv()
 
+# Site settings
+SITE_NAME = os.getenv('SITE_NAME', 'PROJECT-K')
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Security
 # ========
 DEBUG = os.getenv('DEBUG', 'True') == 'True'
-SECRET_KEY = os.getenv('SECRET_KEY')
-if not SECRET_KEY and DEBUG:
-    SECRET_KEY = 'django-insecure-dev-key-only-for-debug'
+SECRET_KEY = os.getenv('SECRET_KEY', 'SuRkXMHtX1PchYGgci/jyFhYzlz0Fsx3UiV+oR1J387wXAcVsDZ+++nA')
 
 # Hosts & Security
 # ===============
-ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1,192.168.101.4').split(',')
 
 # SSL/HTTPS settings
 SECURE_SSL_REDIRECT = os.getenv('SECURE_SSL_REDIRECT', 'False') == 'True'
@@ -30,7 +31,11 @@ CSRF_COOKIE_SECURE = os.getenv('CSRF_COOKIE_SECURE', 'False') == 'True'
 # ============
 CORS_ALLOW_ALL_ORIGINS = os.getenv('CORS_ALLOW_ALL_ORIGINS', 'True') == 'True'
 CORS_ALLOW_CREDENTIALS = os.getenv('CORS_ALLOW_CREDENTIALS', 'True') == 'True'
-CORS_ALLOWED_ORIGINS = os.getenv('CORS_ALLOWED_ORIGINS', '').split(',')
+CORS_ALLOWED_ORIGINS = [
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    'http://192.168.101.4:3000'
+]
 
 # Application definition
 # =====================
@@ -62,7 +67,6 @@ MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',  # Should be as high as possible, especially before CommonMiddleware
     'django.middleware.common.CommonMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
@@ -191,33 +195,31 @@ AUTH_USER_MODEL = 'users.User'
 
 # Email Configuration
 EMAIL_ENABLED = os.getenv('EMAIL_ENABLED', 'True') == 'True'
-# Enable/disable welcome emails
-SEND_WELCOME_EMAIL = os.getenv('SEND_WELCOME_EMAIL', 'True') == 'True'
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
+EMAIL_PORT = int(os.getenv('EMAIL_PORT', '587'))
+EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True') == 'True'
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER)
+SERVER_EMAIL = DEFAULT_FROM_EMAIL
+REPLY_TO_EMAIL = 'imrameshrawat@gmail.com'
+SERVER_EMAIL = 'imrameshrawat@gmail.com'
+EMAIL_TIMEOUT = 10
 
-# Email backend settings
-if DEBUG and os.getenv('USE_CONSOLE_EMAIL_BACKEND', 'False') == 'True':
-    # Use console backend for development
-    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
-    print("\033[93m\nUsing console email backend - emails will be printed to the console\033[0m")
-else:
-    # Use SMTP backend for production
-    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-    EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
-    EMAIL_PORT = int(os.getenv('EMAIL_PORT', '587'))
-    EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True') == 'True'
-    EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
-    EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
-    
-    # Validate required email settings
-    if not EMAIL_HOST_USER or not EMAIL_HOST_PASSWORD:
-        print("\033[91m\nWARNING: Email settings are not properly configured. "
-              "Set EMAIL_HOST_USER and EMAIL_HOST_PASSWORD environment variables.\033[0m")
-        if DEBUG:
-            print("Falling back to console email backend for development.")
-            EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+# # Log email backend being used
+# if 'console' in EMAIL_BACKEND:
+#     print("\033[93m\nUsing console email backend - emails will be printed to the console\033[0m")
+# else:
+#     print(f"\033[92m\nUsing {EMAIL_BACKEND} - emails will be sent to recipients via {EMAIL_HOST}\033[0m")
 
+# SMTP settings (commented out for testing)
+# EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+# EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
+# EMAIL_PORT = int(os.getenv('EMAIL_PORT', '587'))
+# EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True') == 'True'
 # Email sender settings
-DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER or 'noreply@example.com')
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'noreply@example.com')
 REPLY_TO_EMAIL = os.getenv('REPLY_TO_EMAIL', DEFAULT_FROM_EMAIL)
 SERVER_EMAIL = os.getenv('SERVER_EMAIL', DEFAULT_FROM_EMAIL)
 
@@ -259,15 +261,7 @@ CORS_ALLOW_HEADERS = [
 CORS_EXPOSE_HEADERS = os.getenv('CORS_EXPOSE_HEADERS', 'Content-Type,X-CSRFToken').split(',')
 CORS_PREFLIGHT_MAX_AGE = int(os.getenv('CORS_PREFLIGHT_MAX_AGE', '86400'))  # 24 hours
 
-# CSRF Settings
-# -------------
-CSRF_TRUSTED_ORIGINS = os.getenv('CSRF_TRUSTED_ORIGINS', 'http://localhost:3000,http://127.0.0.1:3000').split(',')
-CSRF_COOKIE_NAME = os.getenv('CSRF_COOKIE_NAME', 'csrftoken')
-CSRF_HEADER_NAME = os.getenv('CSRF_HEADER_NAME', 'X-CSRFToken')
-CSRF_COOKIE_HTTPONLY = os.getenv('CSRF_COOKIE_HTTPONLY', 'False') == 'True'  # Allow JavaScript to read CSRF token
-CSRF_COOKIE_SAMESITE = os.getenv('CSRF_COOKIE_SAMESITE', 'Lax')  # 'Lax' is sufficient for most cases
-CSRF_USE_SESSIONS = os.getenv('CSRF_USE_SESSIONS', 'False') == 'True'
-CSRF_COOKIE_SECURE = os.getenv('CSRF_COOKIE_SECURE', 'False') == 'True'  # Set to True in production with HTTPS
+# CSRF Protection has been disabled
 
 # Session Settings
 # ----------------

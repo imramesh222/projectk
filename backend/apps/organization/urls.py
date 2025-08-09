@@ -1,4 +1,5 @@
-from django.urls import path
+"""URL configuration for the organization app."""
+from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 
 from .views import (
@@ -7,6 +8,11 @@ from .views import (
     DashboardViewSet,
     OrganizationAdminDashboardView,
     debug_organization_view
+)
+from .views.subscription_views import (
+    SubscriptionPlanViewSet,
+    PlanDurationViewSet,
+    OrganizationSubscriptionViewSet
 )
 
 # Define the application namespace
@@ -27,8 +33,19 @@ organization_member_viewset = OrganizationMemberViewSet.as_view({
     'post': 'create',
 })
 
+# Initialize router for ViewSets
+router = DefaultRouter()
+
+# Subscription endpoints
+router.register(r'subscription/plans', SubscriptionPlanViewSet, basename='subscription-plan')
+router.register(r'subscription/durations', PlanDurationViewSet, basename='plan-duration')
+router.register(r'subscription/subscriptions', OrganizationSubscriptionViewSet, basename='organization-subscription')
+
 # URL patterns
 urlpatterns = [
+    # Include router URLs
+    path('', include(router.urls)),
+    
     # Debug endpoint
     path('organizations/debug/<uuid:pk>/', debug_organization_view, name='debug-organization'),
     

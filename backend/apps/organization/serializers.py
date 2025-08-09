@@ -1,7 +1,13 @@
 from rest_framework import serializers
-from .models import Organization, AdminAssignment, Salesperson, Verifier, ProjectManager, Developer, Support
+from .models import (
+    Organization, AdminAssignment, Salesperson, Verifier, ProjectManager, 
+    Developer, Support, SubscriptionPlan, PlanDuration, OrganizationSubscription
+)
 from apps.users.models import User
 from apps.users.serializers import UserSerializer
+from rest_framework import serializers
+from datetime import date, timedelta
+from django.utils import timezone
 
 # Note: OrganizationCreateSerializer has been moved to serializers/organization.py
 
@@ -34,7 +40,8 @@ class OrganizationSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'name', 'slug', 'description', 'logo', 'website', 'phone_number',
             'email', 'address', 'city', 'state', 'country', 'postal_code',
-            'is_active', 'created_at', 'updated_at'
+            'is_active', 'created_at', 'updated_at', 'max_users', 'max_storage',
+            'status', 'legacy_plan'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at', 'slug']
         extra_kwargs = {
@@ -119,6 +126,82 @@ class AdminAssignmentUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = AdminAssignment
         fields = ['is_active']
+
+
+class SubscriptionPlanSerializer(serializers.ModelSerializer):
+    """Serializer for SubscriptionPlan model."""
+    class Meta:
+        model = SubscriptionPlan
+        fields = ['id', 'name', 'description', 'is_active', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+class PlanDurationSerializer(serializers.ModelSerializer):
+    """Serializer for PlanDuration model."""
+    monthly_equivalent = serializers.DecimalField(
+        max_digits=10, 
+        decimal_places=2,
+        read_only=True,
+        help_text="Monthly equivalent price"
+    )
+    
+    class Meta:
+        model = PlanDuration
+        fields = [
+            'id', 'plan', 'duration_months', 'price', 'is_active', 
+            'discount_percentage', 'monthly_equivalent', 'is_default'
+        ]
+        read_only_fields = ['id', 'monthly_equivalent']
+    
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        representation['monthly_equivalent'] = round(instance.price / instance.duration_months, 2)
+        return representation
+
+
+class OrganizationSubscriptionSerializer(serializers.ModelSerializer):
+    """Serializer for OrganizationSubscription model."""
+    plan_name = serializers.CharField(source='plan_duration.plan.name', read_only=True)
+    duration_months = serializers.IntegerField(source='plan_duration.duration_months', read_only=True)
+    price = serializers.DecimalField(
+        source='plan_duration.price', 
+        max_digits=10, 
+        decimal_places=2,
+        read_only=True
+    )
+    days_remaining = serializers.IntegerField(read_only=True)
+    
+    class Meta:
+        model = OrganizationSubscription
+        fields = [
+            'id', 'organization', 'plan_duration', 'plan_name', 'duration_months', 'price',
+            'start_date', 'end_date', 'is_active', 'auto_renew', 'days_remaining',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'days_remaining', 'created_at', 'updated_at']
+    
+    def validate(self, data):
+        """Validate subscription data."""
+        if 'start_date' not in data:
+            data['start_date'] = timezone.now().date()
+            
+        if 'end_date' not in data and 'plan_duration' in data:
+            duration = data['plan_duration'].duration_months
+            data['end_date'] = data['start_date'] + timedelta(days=30 * duration)
+            
+        # Ensure end_date is after start_date
+        if data.get('end_date') and data['end_date'] < data['start_date']:
+            raise serializers.ValidationError({"end_date": "End date must be after start date"})
+            
+        return data
+
+
+class OrganizationWithSubscriptionSerializer(OrganizationSerializer):
+    """Organization serializer that includes subscription details."""
+    subscription = OrganizationSubscriptionSerializer(read_only=True)
+    
+    class Meta(OrganizationSerializer.Meta):
+        fields = OrganizationSerializer.Meta.fields + ['subscription']
 
 
 class DeveloperSerializer(serializers.ModelSerializer):
