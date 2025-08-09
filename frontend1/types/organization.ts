@@ -52,6 +52,7 @@ export interface OrganizationActivity {
 }
 
 export interface OrganizationMetrics {
+  totalOrganizations(totalOrganizations: any): import("react").ReactNode;
   totalMembers: number;
   activeMembers: number;
   totalProjects: number;

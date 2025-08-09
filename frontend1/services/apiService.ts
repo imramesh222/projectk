@@ -1,8 +1,8 @@
 import axios, { AxiosRequestConfig, AxiosResponse, AxiosError } from 'axios';
-
+import { API_URL } from '@/constant';
 // Create axios instance with base URL from environment variables
 const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1',
+  baseURL: API_URL,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -58,7 +58,7 @@ api.interceptors.response.use(
       try {
         // Try to refresh the token
         const response = await axios.post(
-          `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1'}/auth/token/refresh/`,
+          `${API_URL}/auth/token/refresh/`,
           { refresh: localStorage.getItem('refresh_token') }
         );
         

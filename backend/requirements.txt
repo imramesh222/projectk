@@ -23,12 +23,14 @@ django-celery-beat==4.2.0
 
 # Database
 psycopg2-binary==2.9.9  # PostgreSQL adapter
+psutil==7.0.0  # System metrics and process utilities
 
 # Image Processing
 Pillow==10.4.0  # Required for ImageField
 
 # Authentication
 djangorestframework-simplejwt==5.3.1  # JWT Authentication
+django-ipware==7.0.1  # IP address utilities
 
 # API Documentation
 drf-yasg==1.21.7  # Yet another Swagger generator

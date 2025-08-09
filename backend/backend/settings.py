@@ -60,6 +60,7 @@ INSTALLED_APPS = [
     'apps.support',
     'apps.notifications',
     'apps.dashboard',
+    'apps.activity_logs',
 ]
 
 MIDDLEWARE = [
