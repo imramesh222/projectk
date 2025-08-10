@@ -8,15 +8,36 @@ const isServer = typeof window === 'undefined';
 // List of public paths that don't require authentication
 const publicPaths = ['/login', '/register', '/_next', '/favicon.ico'];
 
+// Global roles that exist outside organizations
+const GLOBAL_ROLES = ['superadmin', 'user'];
+
+// Organization-specific roles
+const ORG_ROLES = [
+  'admin',
+  'salesperson',
+  'verifier',
+  'project_manager',
+  'support',
+  'developer'
+];
+
 // List of protected paths and their allowed roles
 const protectedPaths: Record<string, string[]> = {
+  // Superadmin dashboard - only for global superadmins
   '/superadmin': ['superadmin'],
-  '/admin': ['admin', 'superadmin'],
-  '/manager': ['manager', 'admin', 'superadmin'],
-  '/developer': ['developer', 'manager', 'admin', 'superadmin'],
-  '/sales': ['sales', 'admin', 'superadmin'],
-  '/support': ['support', 'admin', 'superadmin'],
-  '/verifier': ['verifier', 'admin', 'superadmin'],
+  
+  // Organization dashboard - for org admins and superadmins
+  '/organization/dashboard': ['admin', 'superadmin'],
+  
+  // User dashboard - for regular users and organization members
+  '/dashboard': ['user', ...ORG_ROLES],
+  
+  // Organization-specific routes - only accessible within organization context
+  '/organization': ORG_ROLES,
+  '/projects': ['project_manager', 'developer', 'admin'],
+  '/sales': ['salesperson', 'admin'],
+  '/support': ['support', 'admin'],
+  '/verification': ['verifier', 'admin']
 };
 
 // Get the base path from a URL path
@@ -63,7 +84,7 @@ export function middleware(request: NextRequest) {
 
   // Get current user
   const user = getCurrentUserWithFallback();
-  console.log('[MIDDLEWARE] Current user:', user);
+  console.log('[MIDDLEWARE] Current user:', JSON.stringify(user, null, 2));
   
   if (!user) {
     console.log('[MIDDLEWARE] No user found, redirecting to login');
@@ -71,17 +92,27 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
+  // Debug: Log all protected paths and their allowed roles
+  console.log('[MIDDLEWARE] All protected paths and roles:', JSON.stringify(protectedPaths, null, 2));
+  
   // Check if user has access to the requested path
   const allowedRoles = protectedPaths[basePath];
-  console.log(`[MIDDLEWARE] Allowed roles for ${basePath}:`, allowedRoles);
+  console.log(`[MIDDLEWARE] Checking access for path: ${basePath}`);
+  console.log(`[MIDDLEWARE] User role: ${user.role}, Allowed roles:`, allowedRoles);
   
   if (allowedRoles) {
-    if (!allowedRoles.includes(user.role)) {
-      console.log(`[MIDDLEWARE] User role ${user.role} not in allowed roles, redirecting to dashboard`);
-      const dashboardPath = getDashboardPath(user.role);
+    const normalizedUserRole = user.role.toLowerCase();
+    const normalizedAllowedRoles = allowedRoles.map(r => r.toLowerCase());
+    
+    console.log(`[MIDDLEWARE] Normalized - User role: ${normalizedUserRole}, Allowed roles:`, normalizedAllowedRoles);
+    
+    if (!normalizedAllowedRoles.includes(normalizedUserRole)) {
+      console.log(`[MIDDLEWARE] Access denied for role ${normalizedUserRole} at path ${basePath}`);
+      const dashboardPath = getDashboardPath(normalizedUserRole);
+      console.log(`[MIDDLEWARE] Redirecting to dashboard path: ${dashboardPath}`);
       return NextResponse.redirect(new URL(dashboardPath, request.url));
     }
-    console.log(`[MIDDLEWARE] User ${user.role} has access to ${basePath}`);
+    console.log(`[MIDDLEWARE] Access granted: User ${normalizedUserRole} has access to ${basePath}`);
   } else {
     console.log(`[MIDDLEWARE] No role restrictions for path: ${basePath}`);
   }
@@ -90,24 +121,30 @@ export function middleware(request: NextRequest) {
 }
 
 function getDashboardPath(role: string): string {
-  switch (role) {
-    case 'superadmin':
-      return '/superadmin';
-    case 'admin':
-      return '/admin';
-    case 'manager':
-      return '/manager';
-    case 'developer':
-      return '/developer';
-    case 'sales':
-      return '/sales';
-    case 'support':
-      return '/support';
-    case 'verifier':
-      return '/verifier';
-    default:
-      return '/';
+  console.log('[MIDDLEWARE] Getting dashboard path for role:', role);
+  
+  const normalizedRole = role.toLowerCase();
+  let path = '/';
+  
+  // Handle global roles
+  if (normalizedRole === 'superadmin') {
+    path = '/superadmin';
+  } 
+  // Handle organization admin role
+  else if (normalizedRole === 'admin' || normalizedRole === 'organization_admin') {
+    path = '/organization/dashboard';
   }
+  // Handle all other organization roles
+  else if (ORG_ROLES.includes(normalizedRole)) {
+    path = '/dashboard';
+  }
+  // Default for regular users
+  else if (normalizedRole === 'user') {
+    path = '/dashboard';
+  }
+  
+  console.log('[MIDDLEWARE] Resolved dashboard path:', path);
+  return path;
 }
 
 export const config = {

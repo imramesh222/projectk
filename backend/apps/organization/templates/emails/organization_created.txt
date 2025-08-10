@@ -1,0 +1,19 @@
+Welcome to {{ site_name }}!
+
+Dear {{ organization_name }} Administrator,
+
+Your organization "{{ organization_name }}" has been successfully created on {{ site_name }}.
+
+Organization Details:
+- Name: {{ organization_name }}
+- Plan: {{ organization_plan }}
+- Status: {{ organization_status }}
+- Max Users: {{ max_users }}
+- Storage Limit: {{ max_storage }} GB
+
+You can now log in to your dashboard at {{ dashboard_url }} and start adding team members to your organization.
+
+If you have any questions or need assistance, please don't hesitate to contact our support team at {{ support_email }}.
+
+Best regards,
+The {{ site_name }} Team

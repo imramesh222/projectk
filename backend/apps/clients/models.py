@@ -2,7 +2,7 @@ import uuid
 from django.db import models
 from django.utils import timezone
 from apps.users.models import User
-from apps.organization.models import Organization, Salesperson
+from apps.organization.models import Organization, OrganizationMember, OrganizationRoleChoices
 
 class Client(models.Model):
     STATUS_CHOICES = [
@@ -24,11 +24,12 @@ class Client(models.Model):
     name = models.CharField(max_length=255)
     contact_person = models.CharField(max_length=255, help_text="Contact person and details", null=True, blank=True)
     salesperson = models.ForeignKey(
-        Salesperson, 
+        OrganizationMember,
         on_delete=models.SET_NULL,
         related_name='clients',
         null=True,
-        blank=True
+        blank=True,
+        limit_choices_to={'role': OrganizationRoleChoices.SALESPERSON}
     )
     email = models.EmailField(blank=True, null=True)
     phone = models.CharField(max_length=20, blank=True, null=True)

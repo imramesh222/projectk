@@ -5,7 +5,8 @@ from django.db.models import Q
 
 from .models import Task
 from .serializers import TaskSerializer, TaskListSerializer
-from apps.users.permissions import IsAdmin, IsProjectManager, IsDeveloper
+from apps.users.permissions import IsAdmin, IsOrganizationMember
+from apps.organization.models import OrganizationRoleChoices
 
 class TaskViewSet(viewsets.ModelViewSet):
     """
@@ -37,13 +38,20 @@ class TaskViewSet(viewsets.ModelViewSet):
         if user.is_staff or user.is_superuser:
             return queryset
             
-        # If user is a project manager, return tasks from their projects
-        if hasattr(user, 'projectmanager'):
-            return queryset.filter(project__manager=user.projectmanager)
+        try:
+            # Get the user's organization membership
+            member = OrganizationMember.objects.get(user=user)
             
-        # If user is a developer, return their assigned tasks
-        if hasattr(user, 'developer'):
-            return queryset.filter(developer=user.developer)
+            # If user is a project manager, return tasks from their projects
+            if member.role == OrganizationRoleChoices.PROJECT_MANAGER:
+                return queryset.filter(project__project_manager=member)
+                
+            # If user is a developer, return their assigned tasks
+            if member.role == OrganizationRoleChoices.DEVELOPER:
+                return queryset.filter(assigned_to=member)
+                
+        except OrganizationMember.DoesNotExist:
+            pass
             
         # Default: return empty queryset
         return Task.objects.none()
@@ -52,14 +60,24 @@ class TaskViewSet(viewsets.ModelViewSet):
         """
         Instantiates and returns the list of permissions that this view requires.
         """
-        if self.action in ['list', 'retrieve']:
-            permission_classes = [permissions.IsAuthenticated]
-        elif self.action in ['create', 'update', 'partial_update', 'destroy', 'assign', 'complete']:
-            permission_classes = [IsAdmin | IsProjectManager | IsDeveloper]
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            permission_classes = [
+                IsAdmin | 
+                IsOrganizationMember(roles=[OrganizationRoleChoices.PROJECT_MANAGER])
+            ]
+        elif self.action in ['assign', 'complete']:
+            permission_classes = [
+                IsAdmin | 
+                IsOrganizationMember(roles=[
+                    OrganizationRoleChoices.PROJECT_MANAGER,
+                    OrganizationRoleChoices.DEVELOPER
+                ])
+            ]
         else:
             permission_classes = [permissions.IsAuthenticated]
             
-        return [permission() for permission in permission_classes]
+        return [permission() if not callable(permission) else permission 
+                for permission in permission_classes]
     
     def perform_create(self, serializer):
         """Set the created_by field to the current user."""

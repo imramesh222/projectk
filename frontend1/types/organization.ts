@@ -52,6 +52,7 @@ export interface OrganizationActivity {
 }
 
 export interface OrganizationMetrics {
+  totalOrganizations(totalOrganizations: any): import("react").ReactNode;
   totalMembers: number;
   activeMembers: number;
   totalProjects: number;
@@ -93,6 +94,30 @@ export enum BillingPlan {
   ENTERPRISE = 'enterprise',
 }
 
+export interface SubscriptionPlanDetails {
+  id: number;
+  name: string;
+  description: string;
+}
+
+export interface SubscriptionDurationDetails {
+  months: number;
+  price: number;
+  discount_percentage: number;
+}
+
+export interface OrganizationSubscriptionDetails {
+  id: number;
+  plan_details: {
+    plan: SubscriptionPlanDetails;
+    duration: SubscriptionDurationDetails;
+  };
+  start_date: string;
+  end_date: string;
+  is_active: boolean;
+  auto_renew: boolean;
+}
+
 export interface OrganizationBase {
   id: string;
   name: string;
@@ -123,6 +148,7 @@ export interface Organization extends OrganizationBase {
   settings?: Record<string, any>;
   status: OrganizationStatus;
   plan: BillingPlan;
+  subscription?: OrganizationSubscriptionDetails;
   member_count: number;
   storage_used: number;
   storage_limit: number;

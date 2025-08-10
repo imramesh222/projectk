@@ -12,24 +12,43 @@ User = get_user_model()
 logger = logging.getLogger(__name__)
 
 @shared_task(bind=True, max_retries=3)
-def send_welcome_email_task(self, user_id):
+def send_welcome_email_task(self, user_id, password=None, **kwargs):
     """
     Send a welcome email to a newly registered user.
     
     Args:
         user_id: ID of the user to send the welcome email to
+        password: The user's plain text password to include in the welcome email
     """
     try:
+        # Check if welcome emails are suppressed
+        if getattr(settings, 'SUPPRESS_WELCOME_EMAIL', False):
+            logger.info(f"Welcome email suppressed for user {user_id}")
+            return False
+            
         user = User.objects.get(id=user_id)
         
+        # If password is not provided but we have one in kwargs, use it
+        if password is None and 'password' in kwargs:
+            password = kwargs['password']
+            
+        # If we still don't have a password, check if the user has a password set
+        if password is None and hasattr(user, 'password'):
+            # We can't get the plain text password back, so we'll just indicate that one was set
+            has_password = bool(user.password)
+        else:
+            has_password = password is not None
+        
         # Render email content
-        subject = 'Welcome to Our Platform!'
+        subject = 'Welcome to Our Platform! - Your Account Details'
         
         # Render HTML email template
         html_message = render_to_string('emails/welcome_email.html', {
             'user': user,
+            'password': password,  # Include password in the template context
             'login_url': f"{settings.FRONTEND_URL}/login" if hasattr(settings, 'FRONTEND_URL') else '#',
             'support_email': getattr(settings, 'DEFAULT_FROM_EMAIL', 'support@example.com'),
+            'has_password': has_password,  # Flag to check if password is provided
         })
         
         # Create plain text version

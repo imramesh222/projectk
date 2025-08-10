@@ -1,7 +1,7 @@
 import uuid
 from django.db import models
 from django.utils import timezone
-from apps.organization.models import Support as SupportRole
+from apps.organization.models import OrganizationMember
 from apps.projects.models import Project
 from apps.clients.models import Client
 
@@ -42,7 +42,7 @@ class SupportTicket(models.Model):
         help_text="Priority level of the ticket"
     )
     support = models.ForeignKey(
-        SupportRole, 
+        OrganizationMember, 
         on_delete=models.SET_NULL, 
         null=True, 
         blank=True,

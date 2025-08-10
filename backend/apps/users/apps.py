@@ -6,5 +6,5 @@ class UsersConfig(AppConfig):
     name = 'apps.users'
 
     def ready(self):
-        # Signals have been replaced with Celery tasks
-        pass
+        # Import and register signals
+        from . import signals  # noqa

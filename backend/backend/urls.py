@@ -28,6 +28,7 @@ from rest_framework.views import APIView
 from drf_yasg.utils import swagger_auto_schema
 from django.views.decorators.http import require_http_methods
 from django.http import JsonResponse
+from apps.users.serializers import CustomTokenObtainPairSerializer
 
 # Custom TokenVerifyView with Swagger documentation
 class TokenVerifyViewWithSchema(TokenVerifyView):
@@ -138,7 +139,9 @@ urlpatterns = [
     path('api/v1/csrf/', get_csrf_token, name='get-csrf'),
     
     # JWT Authentication
-    path('api/v1/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('api/v1/token/', TokenObtainPairView.as_view(
+        serializer_class=CustomTokenObtainPairSerializer
+    ), name='token_obtain_pair'),
     path('api/v1/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('api/v1/token/verify/', TokenVerifyViewWithSchema.as_view(), name='token_verify'),
     

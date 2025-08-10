@@ -1,12 +1,19 @@
 import logging
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework import status
+from rest_framework.views import APIView
 from django.utils import timezone
 from datetime import timedelta
 from django.db.models import Avg, Count, Q, F, Sum
 from django.conf import settings
+import psutil
+import os
+import platform
+import socket
+from datetime import datetime, timedelta
+from django.db import connection
 
 from .permissions import (
     IsSuperAdmin, IsOrganizationAdmin, IsProjectManager, 
@@ -319,23 +326,154 @@ class UserProfileView(BaseDashboardView):
         })
 
 
-class UserNotificationsView(BaseDashboardView):
-    """View for user notifications."""
+class SystemHealthView(APIView):
+    """View for system health monitoring."""
+    permission_classes = [IsAuthenticated, IsAdminUser]
+    
     def get(self, request, format=None):
-        # This is a placeholder - implement based on your notification system
+        """Get system health metrics."""
+        try:
+            # CPU metrics
+            cpu_percent = psutil.cpu_percent(interval=1)
+            cpu_count = psutil.cpu_count()
+            
+            # Memory metrics
+            memory = psutil.virtual_memory()
+            memory_used_gb = round(memory.used / (1024 ** 3), 2)
+            memory_total_gb = round(memory.total / (1024 ** 3), 2)
+            memory_percent = memory.percent
+            
+            # Disk metrics
+            disk = psutil.disk_usage('/')
+            disk_used_gb = round(disk.used / (1024 ** 3), 2)
+            disk_total_gb = round(disk.total / (1024 ** 3), 2)
+            disk_percent = disk.percent
+            
+            # System info
+            boot_time = datetime.fromtimestamp(psutil.boot_time())
+            uptime = str(datetime.now() - boot_time).split('.')[0]  # Remove microseconds
+            
+            # Database status
+            try:
+                with connection.cursor() as cursor:
+                    cursor.execute("SELECT 1")
+                    db_status = 'connected'
+                    db_tables = len(connection.introspection.table_names())
+            except Exception as e:
+                db_status = f'error: {str(e)}'
+                db_tables = 0
+            
+            # Service status (example services - customize as needed)
+            services = [
+                self._check_service('Django', ['python', 'manage.py']),
+                self._check_service('PostgreSQL', ['postgres']),
+                self._check_service('Redis', ['redis-server']),
+                self._check_service('Celery', ['celery']),
+            ]
+            
+            return Response({
+                'status': 'healthy',
+                'timestamp': datetime.now().isoformat(),
+                'system': {
+                    'os': f"{platform.system()} {platform.release()}",
+                    'hostname': socket.gethostname(),
+                    'python_version': platform.python_version(),
+                },
+                'cpu': {
+                    'usage_percent': cpu_percent,
+                    'cores': cpu_count,
+                },
+                'memory': {
+                    'used_gb': memory_used_gb,
+                    'total_gb': memory_total_gb,
+                    'usage_percent': memory_percent,
+                },
+                'disk': {
+                    'used_gb': disk_used_gb,
+                    'total_gb': disk_total_gb,
+                    'usage_percent': disk_percent,
+                },
+                'uptime': uptime,
+                'database': {
+                    'status': db_status,
+                    'tables': db_tables,
+                },
+                'services': services,
+            })
+            
+        except Exception as e:
+            return Response(
+                {'error': f'Failed to fetch system metrics: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    def _check_service(self, name, process_names):
+        """Check if a service is running by process name."""
+        try:
+            for proc in psutil.process_iter(['name', 'cmdline']):
+                try:
+                    if any(name.lower() in ' '.join(proc.info['cmdline'] or []).lower() 
+                          for name in process_names):
+                        return {
+                            'name': name,
+                            'status': 'running',
+                            'pid': proc.pid,
+                            'memory_mb': round(proc.memory_info().rss / (1024 * 1024), 2)
+                        }
+                except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                    continue
+            return {'name': name, 'status': 'stopped'}
+        except Exception as e:
+            return {'name': name, 'status': f'error: {str(e)}'}
+
+
+class UserNotificationsView(APIView):
+    """View for user notifications."""
+    
+    def get(self, request, format=None):
+        """Get user notifications."""
+        # TODO: Implement actual notification fetching
         return Response({
             'unread_count': 0,
             'notifications': []
         })
 
 
-class GlobalSearchView(BaseDashboardView):
+class ActivitiesView(BaseDashboardView):
+    """View for recent activities."""
+
+    def get(self, request, format=None):
+        """Get recent activities for the current user."""
+        try:
+            # Get recent activities from GlobalSearchView's method
+            activities = GlobalSearchView().get_recent_activities(limit=20)
+            
+            # Return in the format expected by the frontend
+            return Response({
+                'count': len(activities),
+                'next': None,
+                'previous': None,
+                'results': activities
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            logger.error(f"Error retrieving activities: {str(e)}")
+            return Response({
+                'count': 0,
+                'next': None,
+                'previous': None,
+                'results': []
+            }, status=status.HTTP_200_OK)
+
+
+class GlobalSearchView(APIView):
     """Global search across the platform."""
+
     def get(self, request, format=None):
         query = request.query_params.get('q', '').strip()
         if not query:
             return Response({'results': []})
-        
+
         results = []
         user = request.user
         

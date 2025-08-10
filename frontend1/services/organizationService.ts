@@ -1,4 +1,4 @@
-import { apiGet } from './apiService';
+import { apiGet, apiPost } from './apiService';
 import { 
   Organization, 
   OrganizationListItem as OrgListItem,
@@ -83,7 +83,10 @@ interface RecentActivityItem {
 }
 
 export const getOrganizationById = async (orgId: string): Promise<Organization> => {
-  const response = await apiGet<Organization>(`/org/organizations/${orgId}/`);
+  const response = await apiPost('/org/organizations/', {
+    orgId: orgId,
+    skip_payment: true, // Default to true in development
+  });
   return {
     ...response,
     status: (response.status as OrganizationStatus) || OrganizationStatus.INACTIVE,
@@ -627,7 +630,7 @@ export const fetchOrganizationDetails = async (orgId: string): Promise<Organizat
  */
 export const fetchOrganizationMetrics = async (orgId: string): Promise<OrganizationMetrics> => {
   try {
-    const response = await apiGet<{ metrics: OrganizationMetrics }>(`/organizations/${orgId}/metrics/`);
+    const response = await apiGet<{ metrics: OrganizationMetrics }>(`/org/organizations/${orgId}/metrics/`);
     return response.metrics;
   } catch (error) {
     console.error('Error fetching organization metrics:', error);
@@ -692,6 +695,7 @@ export const fetchOrganizations = async ({
       ordering: `${sortOrder === 'desc' ? '-' : ''}${sortBy}`,
     });
 
+    // The endpoint is /api/v1/org/organizations/ as per backend URL configuration
     const response = await apiGet<{
       count: number;
       next: string | null;
@@ -710,6 +714,25 @@ export const fetchOrganizations = async ({
         updated_at: string;
         is_active: boolean;
         slug: string;
+        subscription?: {
+          id: number;
+          plan_details: {
+            plan: {
+              id: number;
+              name: string;
+              description: string;
+            };
+            duration: {
+              months: number;
+              price: number;
+              discount_percentage: number;
+            };
+          };
+          start_date: string;
+          end_date: string;
+          is_active: boolean;
+          auto_renew: boolean;
+        };
       }>;
     }>(`/org/organizations/?${params.toString()}`);
 
@@ -733,7 +756,7 @@ export const fetchOrganizations = async ({
     }
 
     // Map the API response to the Organization type
-    const organizations: Organization[] = response.results.map((org: ApiOrganization) => {
+    const organizations: Organization[] = response.results.map((org) => {
       // Create a new object with all the required fields
       const organization: Organization = {
         id: org.id,
@@ -743,8 +766,8 @@ export const fetchOrganizations = async ({
         created_at: org.created_at || new Date().toISOString(),
         updated_at: org.updated_at || new Date().toISOString(),
         // These properties come from the API response but might be undefined
-        members_count: 'members_count' in org ? org.members_count : 0,
-        projects_count: 'projects_count' in org ? org.projects_count : 0,
+        members_count: org.member_count || 0,
+        projects_count: 0, // Default to 0 if not provided
         status: (org.status as OrganizationStatus) || OrganizationStatus.INACTIVE,
         plan: (org.plan as BillingPlan) || BillingPlan.FREE,
         member_count: org.member_count || 0,
@@ -752,6 +775,26 @@ export const fetchOrganizations = async ({
         storage_limit: org.storage_limit || 0,
         last_active: org.last_active || new Date().toISOString(),
         owner: org.owner || '',
+        // Include subscription data if available
+        subscription: org.subscription ? {
+          id: org.subscription.id,
+          plan_details: {
+            plan: {
+              id: org.subscription.plan_details.plan.id,
+              name: org.subscription.plan_details.plan.name,
+              description: org.subscription.plan_details.plan.description
+            },
+            duration: {
+              months: org.subscription.plan_details.duration.months,
+              price: org.subscription.plan_details.duration.price,
+              discount_percentage: org.subscription.plan_details.duration.discount_percentage
+            }
+          },
+          start_date: org.subscription.start_date,
+          end_date: org.subscription.end_date,
+          is_active: org.subscription.is_active,
+          auto_renew: org.subscription.auto_renew
+        } : undefined,
         // Set data to a copy of the org data without the data property
         data: {
           id: org.id,
@@ -786,6 +829,46 @@ export const fetchOrganizations = async ({
   }
 };
 
+/**
+ * Creates a new organization
+ */
+export const createOrganization = async (data: {
+  name: string;
+  email: string;
+  slug: string;
+  status: 'active' | 'trial' | 'suspended' | 'inactive';
+  plan_duration: number;
+  max_users: number;
+  max_storage: number;
+  description?: string;
+  phone_number?: string;
+  website?: string;
+  skip_payment?: boolean;
+}): Promise<Organization> => {
+  try {
+    // Use the apiPost utility which handles authentication, CSRF tokens, and error handling
+    const response = await apiPost('/org/organizations/', {
+      name: data.name,
+      email: data.email,
+      slug: data.slug,
+      status: data.status,
+      plan_duration: data.plan_duration,
+      max_users: data.max_users,
+      max_storage: data.max_storage,
+      description: data.description || '',
+      phone_number: data.phone_number || '',
+      website: data.website || '',
+    });
+    return response;
+  } catch (error) {
+    console.error('Error creating organization:', error);
+    throw new Error('Failed to create organization');
+  }
+};
+
+/**
+ * Fetches dashboard data for the organization
+ */
 export const fetchDashboardData = async (): Promise<OrganizationDashboardData> => {
   try {
     console.log('Fetching superadmin dashboard data...');

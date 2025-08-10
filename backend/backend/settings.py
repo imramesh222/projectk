@@ -1,33 +1,44 @@
 import os
+import os
 from pathlib import Path
+from datetime import timedelta
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
 load_dotenv()
 
+# Site settings
+SITE_NAME = os.getenv('SITE_NAME', 'PROJECT-K')
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-0eiji9!8!q6p#lics3m2qz&%$02*x468b$18ajyj&3p-^v8!@k')
-
-# SECURITY WARNING: don't run with debug turned on in production!
+# Security
+# ========
 DEBUG = os.getenv('DEBUG', 'True') == 'True'
+SECRET_KEY = os.getenv('SECRET_KEY', 'SuRkXMHtX1PchYGgci/jyFhYzlz0Fsx3UiV+oR1J387wXAcVsDZ+++nA')
 
-# Allow all hosts in development
-ALLOWED_HOSTS = ['*']
+# Hosts & Security
+# ===============
+ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1,192.168.101.4').split(',')
 
-# Disable HTTPS redirection in development
-SECURE_SSL_REDIRECT = False
-SECURE_PROXY_SSL_HEADER = None
-SESSION_COOKIE_SECURE = False
-CSRF_COOKIE_SECURE = False
+# SSL/HTTPS settings
+SECURE_SSL_REDIRECT = os.getenv('SECURE_SSL_REDIRECT', 'False') == 'True'
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https') if os.getenv('USE_HTTPS') == 'True' else None
+SESSION_COOKIE_SECURE = os.getenv('SESSION_COOKIE_SECURE', 'False') == 'True'
+CSRF_COOKIE_SECURE = os.getenv('CSRF_COOKIE_SECURE', 'False') == 'True'
 
 # CORS settings
-CORS_ALLOW_ALL_ORIGINS = True
-CORS_ALLOW_CREDENTIALS = True
+# ============
+CORS_ALLOW_ALL_ORIGINS = os.getenv('CORS_ALLOW_ALL_ORIGINS', 'True') == 'True'
+CORS_ALLOW_CREDENTIALS = os.getenv('CORS_ALLOW_CREDENTIALS', 'True') == 'True'
+CORS_ALLOWED_ORIGINS = [
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    'http://192.168.101.4:3000'
+]
 
-
-
+# Application definition
+# =====================
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -49,6 +60,7 @@ INSTALLED_APPS = [
     'apps.support',
     'apps.notifications',
     'apps.dashboard',
+    'apps.activity_logs',
 ]
 
 MIDDLEWARE = [
@@ -56,7 +68,6 @@ MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',  # Should be as high as possible, especially before CommonMiddleware
     'django.middleware.common.CommonMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
@@ -83,13 +94,14 @@ TEMPLATES = [
 WSGI_APPLICATION = 'backend.wsgi.application'
 ASGI_APPLICATION = 'backend.routing.application'  # For Channels
 
-# Database
+# Database Configuration
+# =====================
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.postgresql',
+        'ENGINE': os.getenv('DB_ENGINE', 'django.db.backends.postgresql'),
         'NAME': os.getenv('DB_NAME', 'rbac_db'),
         'USER': os.getenv('DB_USER', 'postgres'),
-        'PASSWORD': os.getenv('DB_PASSWORD', 'ramesh'),
+        'PASSWORD': os.getenv('DB_PASSWORD', ''),
         'HOST': os.getenv('DB_HOST', 'localhost'),
         'PORT': os.getenv('DB_PORT', '5432'),
     }
@@ -115,12 +127,15 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # JWT Configuration
-from datetime import timedelta
-
+# =================
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
-    'ROTATE_REFRESH_TOKENS': False,
+    'ACCESS_TOKEN_LIFETIME': timedelta(
+        minutes=int(os.getenv('JWT_ACCESS_TOKEN_LIFETIME_MINUTES', '60'))
+    ),
+    'REFRESH_TOKEN_LIFETIME': timedelta(
+        days=int(os.getenv('JWT_REFRESH_TOKEN_LIFETIME_DAYS', '7'))
+    ),
+    'ROTATE_REFRESH_TOKENS': os.getenv('JWT_ROTATE_REFRESH_TOKENS', 'False') == 'True',
     'BLACKLIST_AFTER_ROTATION': True,
     'ALGORITHM': 'HS256',
     'SIGNING_KEY': SECRET_KEY,
@@ -134,8 +149,12 @@ SIMPLE_JWT = {
     'TOKEN_TYPE_CLAIM': 'token_type',
     'JTI_CLAIM': 'jti',
     'SLIDING_TOKEN_REFRESH_EXP_CLAIM': 'refresh_exp',
-    'SLIDING_TOKEN_LIFETIME': timedelta(minutes=5),
-    'SLIDING_TOKEN_REFRESH_LIFETIME': timedelta(days=1),
+    'SLIDING_TOKEN_LIFETIME': timedelta(
+        minutes=int(os.getenv('JWT_SLIDING_TOKEN_LIFETIME_MINUTES', '5'))
+    ),
+    'SLIDING_TOKEN_REFRESH_LIFETIME': timedelta(
+        days=int(os.getenv('JWT_SLIDING_TOKEN_REFRESH_LIFETIME_DAYS', '1'))
+    ),
     'TOKEN_OBTAIN_SERIALIZER': 'apps.users.serializers.CustomTokenObtainPairSerializer',
 }
 
@@ -176,21 +195,31 @@ CELERY_RESULT_SERIALIZER = 'json'
 AUTH_USER_MODEL = 'users.User'
 
 # Email Configuration
-EMAIL_ENABLED = os.getenv('EMAIL_ENABLED', 'True') == 'True'
-# Enable/disable welcome emails
-SEND_WELCOME_EMAIL = os.getenv('SEND_WELCOME_EMAIL', 'True') == 'True'
-# Always use SMTP backend for sending real emails
+# =================
+# Force SMTP email backend
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+print(f"\033[92m\nUsing SMTP email backend - emails will be sent via {os.getenv('EMAIL_HOST', 'smtp.gmail.com')}\033[0m")
+
+# SMTP Settings
 EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
-EMAIL_PORT = int(os.getenv('EMAIL_PORT', 587))
+EMAIL_PORT = int(os.getenv('EMAIL_PORT', '587'))
 EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True') == 'True'
 EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', 'imrameshrawat@gmail.com')
-EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', 'pfen jzti qjyf dxbh')
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', 'ittx dwsn jlaj clhs')
+EMAIL_USE_SSL = False
+EMAIL_TIMEOUT = 30
+
+# Email Sender Settings
 DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'imrameshrawat@gmail.com')
-REPLY_TO_EMAIL = os.getenv('REPLY_TO_EMAIL', 'noreply@example.com')
-SERVER_EMAIL = os.getenv('SERVER_EMAIL', 'noreply@example.com')
+REPLY_TO_EMAIL = os.getenv('REPLY_TO_EMAIL', 'imrameshrawat@gmail.com')
+SERVER_EMAIL = os.getenv('SERVER_EMAIL', 'imrameshrawat@gmail.com')
+
+# Email Notification Settings
+SEND_WELCOME_EMAIL = True
+SUPPRESS_WELCOME_EMAIL = False
 
 # Frontend URL for email links
+FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:3000')
 FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:3000')
 
 # Timeout in seconds for blocking operations like the connection attempt
@@ -202,12 +231,8 @@ EMAIL_TIMEOUT = int(os.getenv('EMAIL_TIMEOUT', '10'))
 
 # CORS Settings
 # -------------
-CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-    "http://192.168.101.4:3000",
-]
+CORS_ALLOW_CREDENTIALS = os.getenv('CORS_ALLOW_CREDENTIALS', 'True') == 'True'
+CORS_ALLOWED_ORIGINS = os.getenv('CORS_ALLOWED_ORIGINS', 'http://localhost:3000,http://127.0.0.1:3000').split(',')
 
 CORS_ALLOW_METHODS = [
     'DELETE',
@@ -229,24 +254,10 @@ CORS_ALLOW_HEADERS = [
     'x-csrftoken',
     'x-requested-with',
 ]
-CORS_EXPOSE_HEADERS = ['Content-Type', 'X-CSRFToken']
-CORS_PREFLIGHT_MAX_AGE = 86400  # 24 hours
+CORS_EXPOSE_HEADERS = os.getenv('CORS_EXPOSE_HEADERS', 'Content-Type,X-CSRFToken').split(',')
+CORS_PREFLIGHT_MAX_AGE = int(os.getenv('CORS_PREFLIGHT_MAX_AGE', '86400'))  # 24 hours
 
-# CSRF Settings
-# -------------
-CSRF_TRUSTED_ORIGINS = [
-    'http://localhost:3000',
-    'http://127.0.0.1:3000',
-    'http://192.168.101.4:3000',
-    'http://localhost:8000',
-    'http://192.168.101.4:8000',
-]
-CSRF_COOKIE_NAME = 'csrftoken'
-CSRF_HEADER_NAME = 'X-CSRFToken'
-CSRF_COOKIE_HTTPONLY = False  # Allow JavaScript to read CSRF token
-CSRF_COOKIE_SAMESITE = 'Lax'   # 'Lax' is sufficient for most cases
-CSRF_USE_SESSIONS = False
-CSRF_COOKIE_SECURE = False     # Set to True in production with HTTPS
+# CSRF Protection has been disabled
 
 # Session Settings
 # ----------------
@@ -258,15 +269,15 @@ SESSION_COOKIE_SECURE = False    # Set to True in production with HTTPS
 # ----------------
 # Security settings that are different in development vs production
 SECURE_SETTINGS = {
-    'SECURE_SSL_REDIRECT': not DEBUG,
-    'SESSION_COOKIE_SECURE': not DEBUG,
-    'CSRF_COOKIE_SECURE': not DEBUG,
-    'SECURE_BROWSER_XSS_FILTER': True,
-    'SECURE_CONTENT_TYPE_NOSNIFF': True,
-    'X_FRAME_OPTIONS': 'DENY',
-    'SECURE_HSTS_SECONDS': 31536000 if not DEBUG else 0,  # 1 year if not DEBUG
-    'SECURE_HSTS_INCLUDE_SUBDOMAINS': not DEBUG,
-    'SECURE_HSTS_PRELOAD': not DEBUG,
+    'SECURE_SSL_REDIRECT': os.getenv('SECURE_SSL_REDIRECT', str(not DEBUG)) == 'True',
+    'SESSION_COOKIE_SECURE': os.getenv('SESSION_COOKIE_SECURE', str(not DEBUG)) == 'True',
+    'CSRF_COOKIE_SECURE': os.getenv('CSRF_COOKIE_SECURE', str(not DEBUG)) == 'True',
+    'SECURE_BROWSER_XSS_FILTER': os.getenv('SECURE_BROWSER_XSS_FILTER', 'True') == 'True',
+    'SECURE_CONTENT_TYPE_NOSNIFF': os.getenv('SECURE_CONTENT_TYPE_NOSNIFF', 'True') == 'True',
+    'X_FRAME_OPTIONS': os.getenv('X_FRAME_OPTIONS', 'DENY'),
+    'SECURE_HSTS_SECONDS': int(os.getenv('SECURE_HSTS_SECONDS', '0' if DEBUG else '31536000')),
+    'SECURE_HSTS_INCLUDE_SUBDOMAINS': os.getenv('SECURE_HSTS_INCLUDE_SUBDOMAINS', str(not DEBUG)) == 'True',
+    'SECURE_HSTS_PRELOAD': os.getenv('SECURE_HSTS_PRELOAD', str(not DEBUG)) == 'True',
 }
 
 # Apply security settings

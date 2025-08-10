@@ -5,7 +5,9 @@ from rest_framework.permissions import AllowAny
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 from django.db.models import Count, Q
+from django.conf import settings
 
+from apps.organization.tasks import send_organization_created_email
 from apps.organization.models import (
     Organization, 
     OrganizationMember,
@@ -98,6 +100,69 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(instance)
         return Response(serializer.data)
 
+    def create(self, request, *args, **kwargs):
+        """
+        Create a new organization and send a welcome email to the organization's email address.
+        """
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        # Log the incoming request data for debugging
+        logger.info(f"Organization creation request data: {request.data}")
+        
+        # Make a mutable copy of the request data
+        data = request.data.copy()
+        
+        # Log the data after copying
+        logger.info(f"Copied request data: {data}")
+        
+        # Ensure email is provided and not empty
+        email = data.get('email')
+        logger.info(f"Email from request data: {email}")
+        
+        if not email:
+            error_msg = 'Email field is required.'
+            logger.error(error_msg)
+            return Response(
+                {'email': [error_msg]},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        # Validate email format
+        from django.core.validators import validate_email
+        from django.core.exceptions import ValidationError
+        try:
+            validate_email(email)
+            logger.info(f"Email format is valid: {email}")
+        except ValidationError as e:
+            error_msg = f'Invalid email format: {str(e)}'
+            logger.error(error_msg)
+            return Response(
+                {'email': [error_msg]},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        serializer = self.get_serializer(data=data)
+        serializer.is_valid(raise_exception=True)
+        
+        # Create the organization
+        organization = serializer.save()
+        
+        # Log the organization creation
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"Created organization: {organization.name} (ID: {organization.id}) with email: {organization.email}")
+        
+        # Send welcome email asynchronously if email exists
+        if organization.email:
+            send_organization_created_email.delay(str(organization.id))
+            logger.info(f"Triggered welcome email for organization: {organization.id}")
+        else:
+            logger.warning(f"No email provided for organization: {organization.id}, skipping welcome email")
+        
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+        
     def get_permissions(self):
         """
         Instantiates and returns the list of permissions that this view requires.

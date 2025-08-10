@@ -1,42 +1,66 @@
-# Core
+# Core Dependencies
 Django==5.0.7
+asgiref==3.9.1
+sqlparse==0.5.3
+pytz==2025.2
+tzdata==2025.2
+
+# Django REST Framework
 djangorestframework==3.15.1
 
+# Celery Task Queue
+celery==5.3.6
+kombu==5.5.4
+amqp==5.3.1
+billiard==4.2.1
+vine==5.1.0
+
+# Celery Beat (Scheduler)
+django-celery-beat==4.2.0
+
+# Celery Monitoring
+-e git+https://github.com/mher/flower.git@d6898881a36945ebab86d6f00f1d2d16dbac7b06#egg=flower
+
 # Database
-psycopg2-binary==2.9.9  # For PostgreSQL support
+psycopg2-binary==2.9.9  # PostgreSQL adapter
+psutil==7.0.0  # System metrics and process utilities
+
+# Image Processing
+Pillow==10.4.0  # Required for ImageField
 
 # Authentication
-djangorestframework-simplejwt==5.3.1  # For JWT authentication
-django-cors-headers==4.3.1  # For handling CORS
+djangorestframework-simplejwt==5.3.1  # JWT Authentication
+django-ipware==7.0.1  # IP address utilities
 
-# WebSockets
-uvicorn==0.23.2  # ASGI server
-channels==4.1.0  # WebSockets support
-channels-redis==4.2.0  # Redis channel layer
+# API Documentation
+drf-yasg==1.21.7  # Yet another Swagger generator
 
-# Utilities
-python-dotenv==1.0.1  # For environment variables
-Pillow==10.0.0  # For image processing
-django-filter==24.3  # For filtering querysets
-
-# Development
-django-debug-toolbar==4.3.0  # For debugging
-pytest==8.1.1  # For testing
-pytest-django==4.8.0  # Django test runner
-factory-boy==3.3.0  # For test fixtures
-
-# Production
-gunicorn==21.2.0  # Production WSGI server
-whitenoise==6.6.0  # For static files in production
-
-# Email
-django-anymail==9.2.0  # Optional, but useful for advanced email features
-
-drf-yasg==1.21.10  # Swagger/OpenAPI documentation
-celery==5.3.6  # Task queue for background processing
-
-#corsheaders
+# CORS Headers
 django-cors-headers==4.3.1
 
-#django-model-utils
-django-model-utils==5.0.0
+# Date/Time Utilities
+python-dateutil==2.9.0.post0
+
+# Environment Variables
+python-dotenv==1.0.1
+
+# CLI Tools
+click==8.2.1
+click-didyoumean==0.3.1
+click-plugins==1.1.1.2
+click-repl==0.3.0
+prompt_toolkit==3.0.51
+wcwidth==0.2.13
+
+# Monitoring
+prometheus_client==0.22.1
+
+# Utilities
+humanize==4.12.3
+packaging==25.0
+six==1.17.0
+tornado==6.5.1
+
+# Build Tools
+setuptools==80.9.0
+wheel==0.45.1

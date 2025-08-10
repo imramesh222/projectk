@@ -1,22 +1,38 @@
 from rest_framework import permissions
-from apps.organization.models import AdminAssignment
+from apps.organization.models import OrganizationMember, OrganizationRoleChoices
 
 
 class BaseRolePermission(permissions.BasePermission):
     """Base permission class for role-based access control."""
-    role = None
+    roles = []
     
+    def has_permission(self, request, view):
+        if not (request.user and request.user.is_authenticated):
+            return False
+            
+        # Superadmins have all permissions
+        if request.user.is_superuser or request.user.role == 'superadmin':
+            return True
+            
+        # Check if user has any of the required roles in any organization
+        if self.roles:
+            return OrganizationMember.objects.filter(
+                user=request.user,
+                role__in=self.roles,
+                is_active=True
+            ).exists()
+            
+        return False
+
+
+class IsSuperAdmin(permissions.BasePermission):
+    """Allows access only to superadmin users."""
     def has_permission(self, request, view):
         return bool(
             request.user and 
             request.user.is_authenticated and 
-            request.user.role == self.role
+            (request.user.is_superuser or request.user.role == 'superadmin')
         )
-
-
-class IsSuperAdmin(BaseRolePermission):
-    """Allows access only to superadmin users."""
-    role = 'superadmin'
 
 
 class IsAdmin(BaseRolePermission):
@@ -27,14 +43,13 @@ class IsAdmin(BaseRolePermission):
 class IsOrganizationAdmin(permissions.BasePermission):
     """
     Allows access to:
-    1. Global superadmins (user.role == 'superadmin')
+    1. Global superadmins (user.is_superuser or user.role == 'superadmin')
     2. Organization admins (user has ADMIN role in any organization)
     """
     def has_permission(self, request, view):
-        from apps.organization.models import OrganizationMember, OrganizationRoleChoices
-        
         # Allow global superadmins
-        if request.user and request.user.is_authenticated and request.user.role == 'superadmin':
+        if request.user and request.user.is_authenticated and \
+           (request.user.is_superuser or request.user.role == 'superadmin'):
             return True
             
         # Check for organization admin role
@@ -51,42 +66,85 @@ class IsOrganizationAdmin(permissions.BasePermission):
 
 class IsSelfOrAdmin(permissions.BasePermission):
     """
-    Allows access only to the user themselves or admin users.
+    Allows access to:
+    1. The user themselves
+    2. Superadmins (global or organization)
+    3. Organization admins
     """
     def has_object_permission(self, request, view, obj):
-        # Allow access if the user is an admin or the object is the user themselves
-        is_admin = (
-            request.user and 
-            request.user.is_authenticated and 
-            request.user.role == 'admin'
-        )
-        is_self = request.user and request.user.is_authenticated and obj == request.user
-        return is_admin or is_self
+        if not (request.user and request.user.is_authenticated):
+            return False
+            
+        # Allow access if the object is the user themselves
+        if obj == request.user:
+            return True
+            
+        # Allow access for superadmins
+        if request.user.is_superuser or request.user.role == 'superadmin':
+            return True
+            
+        # Check for organization admin role
+        return OrganizationMember.objects.filter(
+            user=request.user,
+            role=OrganizationRoleChoices.ADMIN,
+            is_active=True
+        ).exists()
 
 
 class IsSalesperson(BaseRolePermission):
-    """Allows access only to salesperson users."""
-    role = 'salesperson'
+    """Allows access only to users with the salesperson role in any organization."""
+    roles = [OrganizationRoleChoices.SALESPERSON]
 
 
 class IsVerifier(BaseRolePermission):
-    """Allows access only to verifier users."""
-    role = 'verifier'
+    """Allows access only to users with the verifier role in any organization."""
+    roles = [OrganizationRoleChoices.VERIFIER]
 
 
 class IsProjectManager(BaseRolePermission):
-    """Allows access only to project manager users."""
-    role = 'project_manager'
+    """Allows access only to users with the project manager role in any organization."""
+    roles = [OrganizationRoleChoices.PROJECT_MANAGER]
 
 
 class IsDeveloper(BaseRolePermission):
-    """Allows access only to developer users."""
-    role = 'developer'
+    """Allows access only to users with the developer role in any organization."""
+    roles = [OrganizationRoleChoices.DEVELOPER]
 
 
 class IsSupport(BaseRolePermission):
-    """Allows access only to support users."""
-    role = 'support'
+    """Allows access only to users with the support role in any organization."""
+    roles = [OrganizationRoleChoices.SUPPORT]
+
+
+class IsOrganizationMember(permissions.BasePermission):
+    """
+    Allows access to users with specific roles in any organization.
+    Can be initialized with a list of allowed roles.
+    """
+    def __init__(self, roles=None):
+        self.roles = roles or []
+    
+    def has_permission(self, request, view):
+        if not (request.user and request.user.is_authenticated):
+            return False
+            
+        # Superadmins have all permissions
+        if request.user.is_superuser or request.user.role == 'superadmin':
+            return True
+            
+        # If no specific roles are required, just check organization membership
+        if not self.roles:
+            return OrganizationMember.objects.filter(
+                user=request.user,
+                is_active=True
+            ).exists()
+            
+        # Check for specific roles
+        return OrganizationMember.objects.filter(
+            user=request.user,
+            role__in=self.roles,
+            is_active=True
+        ).exists()
 
 
 class IsAdminOrSelf(permissions.BasePermission):

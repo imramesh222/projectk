@@ -5,6 +5,7 @@ from .base_views import (
     OrganizationAdminDashboardView,
     # Other views will be added as they're implemented
 )
+from .views import SystemHealthView, ActivitiesView
 
 app_name = 'dashboard'
 
@@ -32,7 +33,11 @@ urlpatterns = [
     path('verifier/overview/', views.VerifierDashboardView.as_view(), name='verifier-overview'),
     
     # Common endpoints
+    path('activities/', ActivitiesView.as_view(), name='activities'),
     path('profile/', views.UserProfileView.as_view(), name='user-profile'),
     path('notifications/', views.UserNotificationsView.as_view(), name='user-notifications'),
     path('search/', views.GlobalSearchView.as_view(), name='global-search'),
+    
+    # System health monitoring (admin only)
+    path('system/health/', SystemHealthView.as_view(), name='system-health'),
 ]
