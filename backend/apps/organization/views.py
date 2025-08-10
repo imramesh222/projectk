@@ -402,13 +402,13 @@ class AdminAssignmentViewSet(viewsets.ModelViewSet):
             fail_silently=True,
         )
 
-        # Send real-time notification
-        send_notification_to_admin(
-            user=admin_user,
-            message=f"You have been assigned as an admin of {org.name}",
-            notification_type='admin_assignment',
-            related_object_id=assignment.id
-        )
+        # # Send real-time notification
+        # send_notification_to_admin(
+        #     user=admin_user,
+        #     message=f"You have been assigned as an admin of {org.name}",
+        #     notification_type='admin_assignment',
+        #     related_object_id=assignment.id
+        # )
 
     @action(detail=True, methods=['post'])
     def deactivate(self, request, pk=None):

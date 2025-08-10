@@ -349,13 +349,13 @@ class OrganizationAdminDashboardView(BaseDashboardView):
             'by_role': list(members.values('role').annotate(count=Count('id')))
         }
         
-        # Project statistics
-        projects = Project.objects.filter(organization=organization)
+        # Project statistics - filter projects through the client relationship
+        projects = Project.objects.filter(client__organization=organization)
         project_stats = {
             'total': projects.count(),
             'active': projects.filter(status='in_progress').count(),
             'completed': projects.filter(status='completed').count(),
-            'overdue': projects.filter(due_date__lt=time_periods['today'], status='in_progress').count()
+            'overdue': projects.filter(deadline__lt=time_periods['today'], status='in_progress').count()
         }
         
         # Recent activities
@@ -377,9 +377,9 @@ class OrganizationAdminDashboardView(BaseDashboardView):
         """Get recent activities for the organization."""
         activities = []
         
-        # Recent project updates
+        # Recent project updates - filter through client relationship
         recent_projects = Project.objects.filter(
-            organization=organization
+            client__organization=organization
         ).order_by('-updated_at')[:5]
         
         for project in recent_projects:

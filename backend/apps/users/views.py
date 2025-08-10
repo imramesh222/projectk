@@ -3,7 +3,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny, BasePermission
 from rest_framework.views import APIView
 from rest_framework.decorators import api_view, permission_classes, authentication_classes, action
-from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework_simplejwt.tokens import RefreshToken
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
@@ -19,7 +19,7 @@ import logging
 from django.utils import timezone
 from django.db.models import Q
 
-from .serializers import UserSerializer
+from .serializers import UserSerializer, UserRegistrationSerializer
 from apps.organization.models import Organization, OrganizationMember, OrganizationRoleChoices
 from .permissions import (
     IsSuperAdmin, 
@@ -153,17 +153,25 @@ def register_user(request):
     )
 
 
+from .serializers.registration_serializers import UserRegistrationSerializer
+from .models import User
+
 class UserRegisterView(APIView):
     """
     Class-based view for user registration.
-    Uses the register_user function internally.
+    Supports both individual user registration and organization signup with subscription.
     """
     permission_classes = [AllowAny]
     authentication_classes = []
     
     @swagger_auto_schema(
-        operation_description="Register a new user",
-        request_body=UserSerializer,
+        operation_description="""
+        Register a new user.
+        
+        For individual signup, provide user details only.
+        For organization signup, include 'organization_name' and optionally 'plan_duration_id'.
+        """,
+        request_body=UserRegistrationSerializer,
         responses={
             201: openapi.Response(
                 description="User registered successfully",
@@ -175,7 +183,50 @@ class UserRegisterView(APIView):
     )
     def post(self, request, *args, **kwargs):
         """Handle POST request for user registration."""
-        return register_user(request)
+        serializer = UserRegistrationSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(
+                {'error': serializer.errors},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            # Create the user and optionally the organization/subscription
+            user = serializer.save()
+            
+            # Prepare response data
+            response_data = {
+                'id': user.id,
+                'username': user.username,
+                'email': user.email,
+                'first_name': user.first_name,
+                'last_name': user.last_name,
+                'role': user.role,
+                'is_active': user.is_active,
+                'message': 'User registered successfully',
+            }
+            
+            # Add organization info if this was an organization signup
+            if hasattr(user, 'organization_memberships'):
+                org_membership = user.organization_memberships.first()
+                if org_membership:
+                    response_data['organization'] = {
+                        'id': str(org_membership.organization.id),
+                        'name': org_membership.organization.name,
+                        'role': org_membership.role,
+                    }
+            
+            return Response(
+                response_data,
+                status=status.HTTP_201_CREATED
+            )
+            
+        except Exception as e:
+            logger.error(f"Error during user registration: {str(e)}")
+            return Response(
+                {'error': 'An error occurred during registration. Please try again.'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 class UserViewSet(viewsets.ModelViewSet):
     """
@@ -186,7 +237,7 @@ class UserViewSet(viewsets.ModelViewSet):
     """
     queryset = User.objects.all()
     serializer_class = UserSerializer
-    parser_classes = [MultiPartParser, FormParser]
+    parser_classes = [JSONParser, MultiPartParser, FormParser]
     
     def get_permissions(self):
         """
@@ -205,58 +256,62 @@ class UserViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         """
         Handle user creation with auto-generated password and welcome email.
-        Only accessible by superadmins.
+        Accessible by superadmins and staff users.
         """
-        # Only allow superadmins to create users through this endpoint
-        if not request.user.is_authenticated or request.user.role != 'superadmin':
+        # Ensure only superadmins and staff can create users through this endpoint
+        if not (request.user.is_superuser or request.user.is_staff):
             return Response(
-                {"detail": "Permission denied. Only superadmins can create users through this endpoint."},
+                {"detail": "Only administrators can create users."},
                 status=status.HTTP_403_FORBIDDEN
             )
             
-        # Process the request data
-        data = request.data.copy()
-        
-        # Set auto_generate_password to True and ensure send_welcome_email is set
-        data['auto_generate_password'] = True
-        data['send_welcome_email'] = True
-        
-        # Create the user using the serializer
-        serializer = self.get_serializer(data=data)
-        serializer.is_valid(raise_exception=True)
+        # Set auto_generate_password to True by default if not provided
+        if 'auto_generate_password' not in request.data:
+            request.data['auto_generate_password'] = True
+            
+        # Ensure send_welcome_email is True for admin-created users
+        request.data['send_welcome_email'] = True
+            
+        # Set default role to 'user' if not provided
+        if 'role' not in request.data:
+            request.data['role'] = 'user'
+            
+        # If organization_id is not provided and user is not a superuser,
+        # set it to the current user's organization
+        if 'organization_id' not in request.data and not request.user.is_superuser:
+            if hasattr(request.user, 'organization'):
+                request.data['organization_id'] = str(request.user.organization.id)
         
         try:
-            # Disable the default welcome email from signals
-            with transaction.atomic():
-                # Temporarily set a flag to prevent duplicate emails
-                if not hasattr(settings, 'SUPPRESS_WELCOME_EMAIL'):
-                    settings.SUPPRESS_WELCOME_EMAIL = True
-                
-                # Save the user and get the generated password from the serializer
-                user = serializer.save()
-                
-                # Get the plain text password from the serializer's validated_data
-                plain_password = serializer.validated_data.get('password')
-                
-                # Send welcome email with the plain text password
-                from .tasks import send_welcome_email_task
-                send_welcome_email_task.delay(user.id, password=plain_password)
-                
-                # Clear the suppression flag
-                settings.SUPPRESS_WELCOME_EMAIL = False
+            # Create the serializer with the request context
+            serializer = self.get_serializer(data=request.data, context={'request': request})
+            serializer.is_valid(raise_exception=True)
             
-            # Return success response
+            # Save the user
+            self.perform_create(serializer)
+            
+            # Get the created user
+            user = serializer.instance
+            
+            # Prepare the response data
+            headers = self.get_success_headers(serializer.data)
+            response_data = {
+                'detail': 'User created successfully',
+                'user_id': str(user.id),
+                'email_sent': True
+            }
+            
+            # Add the auto-generated password to the response if it was generated
+            if hasattr(user, '_password'):
+                response_data['generated_password'] = user._password
+            
             return Response(
-                {
-                    "detail": "User created successfully",
-                    "user_id": str(user.id),
-                    "email_sent": True
-                },
-                status=status.HTTP_201_CREATED
+                response_data,
+                status=status.HTTP_201_CREATED,
+                headers=headers
             )
             
         except Exception as e:
-            # Ensure we clear the suppression flag even if there's an error
             if hasattr(settings, 'SUPPRESS_WELCOME_EMAIL'):
                 settings.SUPPRESS_WELCOME_EMAIL = False
                 

@@ -439,13 +439,41 @@ class UserNotificationsView(APIView):
         })
 
 
-class GlobalSearchView(BaseDashboardView):
+class ActivitiesView(BaseDashboardView):
+    """View for recent activities."""
+
+    def get(self, request, format=None):
+        """Get recent activities for the current user."""
+        try:
+            # Get recent activities from GlobalSearchView's method
+            activities = GlobalSearchView().get_recent_activities(limit=20)
+            
+            # Return in the format expected by the frontend
+            return Response({
+                'count': len(activities),
+                'next': None,
+                'previous': None,
+                'results': activities
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            logger.error(f"Error retrieving activities: {str(e)}")
+            return Response({
+                'count': 0,
+                'next': None,
+                'previous': None,
+                'results': []
+            }, status=status.HTTP_200_OK)
+
+
+class GlobalSearchView(APIView):
     """Global search across the platform."""
+
     def get(self, request, format=None):
         query = request.query_params.get('q', '').strip()
         if not query:
             return Response({'results': []})
-        
+
         results = []
         user = request.user
         

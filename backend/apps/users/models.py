@@ -10,12 +10,46 @@ class RoleChoices(models.TextChoices):
     SUPERADMIN = 'superadmin', 'Superadmin'  # Only for system-wide superusers
 
 class UserManager(BaseUserManager):
-    def create_user(self, username, email, password=None, **extra_fields):
+    def create_user(self, username=None, email=None, password=None, **extra_fields):
         if not email:
             raise ValueError('The Email must be set')
+            
         email = self.normalize_email(email)
+        
+        # Auto-generate username if not provided
+        if not username:
+            # Use the part before @ in the email as the base for username
+            base_username = email.split('@')[0]
+            
+            # Clean the username to ensure it's valid
+            import re
+            base_username = re.sub(r'[^a-zA-Z0-9_]', '', base_username)
+            
+            # If the username is empty after cleaning, use a default
+            if not base_username:
+                base_username = 'user'
+                
+            username = base_username
+            
+            # Ensure username is unique and not empty
+            counter = 1
+            while not username or User.objects.filter(username__iexact=username).exists():
+                username = f"{base_username}{counter}"
+                counter += 1
+        
+        # Ensure username is not empty
+        if not username:
+            raise ValueError('Could not generate a valid username')
+            
+        # Ensure username is unique (case-insensitive check)
+        if User.objects.filter(username__iexact=username).exists():
+            raise ValueError('A user with this username already exists')
+        
         user = self.model(username=username, email=email, **extra_fields)
-        user.set_password(password)
+        
+        if password:
+            user.set_password(password)
+        
         user.save(using=self._db)
         return user
 

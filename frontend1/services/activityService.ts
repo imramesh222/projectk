@@ -76,7 +76,7 @@ const mapActivityToFrontend = (activity: any): Activity => {
 export const fetchRecentActivities = async (limit: number = 5): Promise<Activity[]> => {
   try {
     const response = await apiGet<ActivityResponse>(
-      `/activities/?ordering=-created_at&limit=${limit}`
+      `/dashboard/activities/?ordering=-created_at&limit=${limit}`
     );
     
     // Map the backend response to the frontend format

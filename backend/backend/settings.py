@@ -195,36 +195,31 @@ CELERY_RESULT_SERIALIZER = 'json'
 AUTH_USER_MODEL = 'users.User'
 
 # Email Configuration
-EMAIL_ENABLED = os.getenv('EMAIL_ENABLED', 'True') == 'True'
+# =================
+# Force SMTP email backend
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+print(f"\033[92m\nUsing SMTP email backend - emails will be sent via {os.getenv('EMAIL_HOST', 'smtp.gmail.com')}\033[0m")
+
+# SMTP Settings
 EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
 EMAIL_PORT = int(os.getenv('EMAIL_PORT', '587'))
 EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True') == 'True'
-EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
-EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
-DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER)
-SERVER_EMAIL = DEFAULT_FROM_EMAIL
-REPLY_TO_EMAIL = 'imrameshrawat@gmail.com'
-SERVER_EMAIL = 'imrameshrawat@gmail.com'
-EMAIL_TIMEOUT = 10
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', 'imrameshrawat@gmail.com')
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', 'ittx dwsn jlaj clhs')
+EMAIL_USE_SSL = False
+EMAIL_TIMEOUT = 30
 
-# # Log email backend being used
-# if 'console' in EMAIL_BACKEND:
-#     print("\033[93m\nUsing console email backend - emails will be printed to the console\033[0m")
-# else:
-#     print(f"\033[92m\nUsing {EMAIL_BACKEND} - emails will be sent to recipients via {EMAIL_HOST}\033[0m")
+# Email Sender Settings
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'imrameshrawat@gmail.com')
+REPLY_TO_EMAIL = os.getenv('REPLY_TO_EMAIL', 'imrameshrawat@gmail.com')
+SERVER_EMAIL = os.getenv('SERVER_EMAIL', 'imrameshrawat@gmail.com')
 
-# SMTP settings (commented out for testing)
-# EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-# EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
-# EMAIL_PORT = int(os.getenv('EMAIL_PORT', '587'))
-# EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True') == 'True'
-# Email sender settings
-DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'noreply@example.com')
-REPLY_TO_EMAIL = os.getenv('REPLY_TO_EMAIL', DEFAULT_FROM_EMAIL)
-SERVER_EMAIL = os.getenv('SERVER_EMAIL', DEFAULT_FROM_EMAIL)
+# Email Notification Settings
+SEND_WELCOME_EMAIL = True
+SUPPRESS_WELCOME_EMAIL = False
 
 # Frontend URL for email links
+FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:3000')
 FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:3000')
 
 # Timeout in seconds for blocking operations like the connection attempt

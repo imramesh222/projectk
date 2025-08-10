@@ -57,7 +57,7 @@ def log_user_activity(sender, instance, created, **kwargs):
 def log_model_activity(sender, instance, created, **kwargs):
     """Log generic model creation and updates."""
     # Skip logging for these models
-    if sender._meta.app_label in ['sessions', 'admin', 'contenttypes', 'auth', 'authtoken']:
+    if sender._meta.app_label in ['sessions', 'admin', 'contenttypes', 'auth', 'authtoken', 'django_celery_beat']:
         return
     
     # Skip logging for ActivityLog itself to avoid infinite recursion
@@ -65,6 +65,10 @@ def log_model_activity(sender, instance, created, **kwargs):
         return
     
     model_name = sender.__name__
+    
+    # Skip if the model doesn't have an id field or if it's a PeriodicTasks model
+    if not hasattr(instance, 'id') or model_name == 'PeriodicTasks':
+        return
     
     if created:
         activity_type = ActivityType.CREATE
@@ -79,19 +83,24 @@ def log_model_activity(sender, instance, created, **kwargs):
         else:
             details = {}
     
-    log_activity(
-        user=getattr(instance, 'user', None) or getattr(instance, 'created_by', None),
-        activity_type=activity_type,
-        object_type=model_name,
-        object_id=instance.id,
-        details=details
-    )
+    # Get user from common fields
+    user = getattr(instance, 'user', None) or getattr(instance, 'created_by', None)
+    
+    # Only log if we have a user and the model has an id
+    if user and hasattr(instance, 'id'):
+        log_activity(
+            user=user,
+            activity_type=activity_type,
+            object_type=model_name,
+            object_id=instance.id,
+            details=details
+        )
 
 @receiver(post_delete)
 def log_model_deletion(sender, instance, **kwargs):
     """Log model deletions."""
     # Skip logging for these models
-    if sender._meta.app_label in ['sessions', 'admin', 'contenttypes', 'auth', 'authtoken']:
+    if sender._meta.app_label in ['sessions', 'admin', 'contenttypes', 'auth', 'authtoken', 'django_celery_beat']:
         return
     
     # Skip logging for ActivityLog itself to avoid infinite recursion
@@ -100,13 +109,22 @@ def log_model_deletion(sender, instance, **kwargs):
     
     model_name = sender.__name__
     
-    log_activity(
-        user=getattr(instance, 'user', None) or getattr(instance, 'created_by', None),
-        activity_type=ActivityType.DELETE,
-        object_type=model_name,
-        object_id=instance.id,
-        details={
-            'deleted_at': timezone.now().isoformat(),
-            'deleted_object': str(instance)
-        }
-    )
+    # Skip if the model doesn't have an id field or if it's a PeriodicTasks model
+    if not hasattr(instance, 'id') or model_name == 'PeriodicTasks':
+        return
+    
+    # Get user from common fields
+    user = getattr(instance, 'user', None) or getattr(instance, 'created_by', None)
+    
+    # Only log if we have a user and the model has an id
+    if user and hasattr(instance, 'id'):
+        log_activity(
+            user=user,
+            activity_type=ActivityType.DELETE,
+            object_type=model_name,
+            object_id=instance.id,
+            details={
+                'deleted_at': timezone.now().isoformat(),
+                'deleted_object': str(instance)
+            }
+        )

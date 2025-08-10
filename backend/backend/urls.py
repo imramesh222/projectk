@@ -20,7 +20,7 @@ from rest_framework import permissions
 from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
 from django.conf import settings
-from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView, TokenVerifyView
 from rest_framework.response import Response
 from rest_framework import status
@@ -28,6 +28,7 @@ from rest_framework.views import APIView
 from drf_yasg.utils import swagger_auto_schema
 from django.views.decorators.http import require_http_methods
 from django.http import JsonResponse
+from apps.users.serializers import CustomTokenObtainPairSerializer
 
 # Custom TokenVerifyView with Swagger documentation
 class TokenVerifyViewWithSchema(TokenVerifyView):
@@ -88,6 +89,11 @@ def cors_options_view(request, *args, **kwargs):
     response['Access-Control-Max-Age'] = '86400'
     return response
 
+# CSRF Token View
+@ensure_csrf_cookie
+def get_csrf_token(request):
+    return JsonResponse({'detail': 'CSRF cookie set'})
+
 # Swagger API Info
 swagger_info = openapi.Info(
     title="SAMPLE PROJECT API",
@@ -129,14 +135,19 @@ urlpatterns = [
     path('swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
     path('redoc/', schema_view.with_ui('redoc', cache_timeout=0), name='schema-redoc'),
     
+    # CORS and CSRF endpoints
+    path('api/v1/csrf/', get_csrf_token, name='get-csrf'),
+    
     # JWT Authentication
-    path('api/v1/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('api/v1/token/', TokenObtainPairView.as_view(
+        serializer_class=CustomTokenObtainPairSerializer
+    ), name='token_obtain_pair'),
     path('api/v1/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('api/v1/token/verify/', TokenVerifyViewWithSchema.as_view(), name='token_verify'),
     
     # All other API endpoints - user registration is handled in apps/users/urls.py
     path('api/v1/users/', include('apps.users.urls')),  # Includes user registration at /api/v1/users/register/
-    path('api/v1/org/', include('apps.organization.urls')),  # Organization endpoints
+    path('api/v1/org/', include('apps.organization.urls')),
     path('api/v1/clients/', include('apps.clients.urls')),
     path('api/v1/projects/', include('apps.projects.urls')),
     path('api/v1/tasks/', include('apps.tasks.urls')),
@@ -144,7 +155,7 @@ urlpatterns = [
     path('api/v1/notifications/', include('apps.notifications.urls')),
     path('api/v1/billing/', include('apps.payments.urls')),
     path('api/v1/dashboard/', include('apps.dashboard.urls')),  # Dashboard endpoints
-    path('api/v1/activities/', include('apps.activity_logs.urls')),  # Activity logs endpoint
+    path('api/v1/org/', include('apps.organization.urls')),  # Organization endpoints
     
     # Catch-all OPTIONS handler - must come after all other API routes
     re_path(r'^api/v1/.*$', cors_options_view),  # Catch-all for OPTIONS

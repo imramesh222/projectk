@@ -22,8 +22,26 @@ class OrganizationSerializer(serializers.ModelSerializer):
         super().__init__(*args, **kwargs)
     
     def validate(self, data):
+        """
+        Validate organization data, ensuring email doesn't conflict with user emails.
+        """
+        from apps.users.models import User
+        
+        email = data.get('email')
+        if email:
+            email = email.lower()
+            
+            # Check if email is used by any user
+            if User.objects.filter(email__iexact=email).exists():
+                raise serializers.ValidationError({
+                    'email': 'This email is already in use by a user account.'
+                })
+                
+            # Update the email to lowercase
+            data['email'] = email
+            
         self.logger.info(f"Validating organization data: {data}")
-        return super().validate(data)
+        return data
     
     def create(self, validated_data):
         self.logger.info(f"Creating organization with data: {validated_data}")

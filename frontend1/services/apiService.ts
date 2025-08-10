@@ -45,48 +45,6 @@ api.interceptors.request.use(
   }
 );
 
-// Response interceptor to handle errors globally
-api.interceptors.response.use(
-  (response) => response,
-  async (error) => {
-    const originalRequest = error.config;
-    
-    // If the error status is 401 and we haven't tried to refresh the token yet
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      originalRequest._retry = true;
-      
-      try {
-        // Try to refresh the token
-        const response = await axios.post(
-          `${API_URL}/auth/token/refresh/`,
-          { refresh: localStorage.getItem('refresh_token') }
-        );
-        
-        const { access } = response.data;
-        
-        // Update the tokens
-        localStorage.setItem('access_token', access);
-        
-        // Update the authorization header
-        originalRequest.headers.Authorization = `Bearer ${access}`;
-        
-        // Retry the original request
-        return api(originalRequest);
-      } catch (error) {
-        // If refresh token is invalid, redirect to login
-        if (typeof window !== 'undefined') {
-          localStorage.removeItem('access_token');
-          localStorage.removeItem('refresh_token');
-          window.location.href = '/login';
-        }
-        return Promise.reject(error);
-      }
-    }
-    
-    return Promise.reject(error);
-  }
-);
-
 // Response interceptor to handle 401 errors and token refresh
 api.interceptors.response.use(
   (response) => response,

@@ -140,7 +140,7 @@ export function OrganizationManagementSection() {
   // Get the selected plan object with type guard
   const getSelectedPlan = (): SubscriptionPlan | null => {
     if (!selectedPlanId) return null;
-    const plan = subscriptionPlans.find(p => p.id.toString() === selectedPlanId);
+    const plan = subscriptionPlans.find(p => p && p.id.toString() === selectedPlanId);
     return plan || null;
   };
   
@@ -161,18 +161,50 @@ export function OrganizationManagementSection() {
     const fetchPlans = async () => {
       try {
         console.log('Fetching subscription plans...');
-        const plans = await fetchSubscriptionPlans();
+        const { data: plans, error } = await fetchSubscriptionPlans();
+        
+        if (error) {
+          console.error('Error fetching plans:', error);
+          toast({
+            title: 'Error',
+            description: error,
+            variant: 'destructive',
+          });
+          return;
+        }
+        
+        if (!plans || plans.length === 0) {
+          console.warn('No subscription plans available');
+          toast({
+            title: 'Warning',
+            description: 'No subscription plans available. Please contact support.',
+            variant: 'destructive',
+          });
+          return;
+        }
+        
         console.log('Fetched plans:', plans);
         setSubscriptionPlans(plans);
         
         // Fetch durations for each plan
         const durations: Record<string, PlanDuration[]> = {};
         for (const plan of plans) {
-          console.log(`Fetching durations for plan ${plan.id}...`);
-          const planDurations = await fetchPlanDurations(plan.id);
-          console.log(`Durations for plan ${plan.id}:`, planDurations);
-          durations[plan.id.toString()] = planDurations;
+          try {
+            console.log(`Fetching durations for plan ${plan.id}...`);
+            const { data: planDurations, error: durationError } = await fetchPlanDurations(plan.id);
+            
+            if (durationError || !planDurations) {
+              console.error(`Error fetching durations for plan ${plan.id}:`, durationError);
+              continue;
+            }
+            
+            console.log(`Durations for plan ${plan.id}:`, planDurations);
+            durations[plan.id.toString()] = planDurations;
+          } catch (err) {
+            console.error(`Error processing plan ${plan.id}:`, err);
+          }
         }
+        
         setPlanDurations(durations);
         
         // Select the first plan by default if available
@@ -323,15 +355,36 @@ export function OrganizationManagementSection() {
         setTotalItems(orgs.total);
         
         // Fetch subscription plans
-        const plans = await fetchSubscriptionPlans();
+        const { data: plans, error: plansError } = await fetchSubscriptionPlans();
+        
+        if (plansError || !plans) {
+          console.error('Error fetching subscription plans:', plansError);
+          toast({
+            title: 'Error',
+            description: 'Failed to load subscription plans',
+            variant: 'destructive',
+          });
+          return;
+        }
+        
         setSubscriptionPlans(plans);
         
         // Fetch durations for each plan
         const durations: Record<string, PlanDuration[]> = {};
         for (const plan of plans) {
-          const planId = plan.id.toString();
-          durations[planId] = await fetchPlanDurations(plan.id);
+          try {
+            const { data: planDurations, error: durationError } = await fetchPlanDurations(plan.id);
+            if (durationError || !planDurations) {
+              console.error(`Error fetching durations for plan ${plan.id}:`, durationError);
+              continue;
+            }
+            const planId = plan.id.toString();
+            durations[planId] = planDurations;
+          } catch (err) {
+            console.error(`Error processing plan ${plan.id}:`, err);
+          }
         }
+        
         setPlanDurations(durations);
         
         // Set the first plan as selected by default
@@ -823,7 +876,7 @@ return (
                                   >
                                     {duration.duration_months} month{duration.duration_months > 1 ? 's' : ''} - 
                                     ${(typeof duration.price === 'string' ? parseFloat(duration.price) : duration.price).toFixed(2)}
-                                    {duration.discount_percentage > 0 && 
+                                    {Number(duration.discount_percentage || 0) > 0 && 
                                       ` (Save ${duration.discount_percentage}%)`}
                                   </SelectItem>
                                 );

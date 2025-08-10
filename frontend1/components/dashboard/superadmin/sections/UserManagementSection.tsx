@@ -147,7 +147,6 @@ interface ApiResponse<T> {
 
 // Define form schemas outside the component
 const userFormSchema = z.object({
-  username: z.string().min(3, 'Username must be at least 3 characters'),
   email: z.string().email('Please enter a valid email address'),
   first_name: z.string().min(1, 'First name is required'),
   last_name: z.string().min(1, 'Last name is required'),
@@ -229,7 +228,6 @@ const UserManagementSection = () => {
     defaultValues: {
       role: 'user',
       is_active: true,
-      username: '',
       email: '',
       first_name: '',
       last_name: '',
@@ -267,7 +265,7 @@ const UserManagementSection = () => {
   }, []);
 
   // Get user's role badge
-  const getRoleBadge = useCallback((role: string) => {
+  const getRoleBadge = useCallback((role?: string | null) => {
     const roleMap: Record<string, string> = {
       admin: 'bg-purple-100 text-purple-800',
       user: 'bg-blue-100 text-blue-800',
@@ -278,9 +276,12 @@ const UserManagementSection = () => {
       support: 'bg-orange-100 text-orange-800'
     };
     
+    const roleKey = role || 'user'; // Default to 'user' if role is not provided
+    const displayName = roleKey ? roleKey.replace('_', ' ') : 'User';
+    
     return (
-      <Badge className={`${roleMap[role] || 'bg-gray-100 text-gray-800'} capitalize`}>
-        {role.replace('_', ' ')}
+      <Badge className={`${roleMap[roleKey] || 'bg-gray-100 text-gray-800'} capitalize`}>
+        {displayName}
       </Badge>
     );
   }, []);
@@ -353,21 +354,26 @@ const UserManagementSection = () => {
     setIsCreating(true);
     
     try {
-      // Remove password-related fields before sending to API
-      // The backend will handle password generation and email notification
-      const { password, confirm_password, ...userData } = data;
+      // Prepare the user data
+      const userData: any = {
+        email: data.email,
+        first_name: data.first_name,
+        last_name: data.last_name,
+        role: data.role,
+        auto_generate_password: true,  // This will trigger password generation
+      };
       
-      // If role is user, remove organization_id
-      if (userData.role === 'user') {
-        delete userData.organization_id;
+      // Only include organization_id if role is not 'user'
+      if (data.role !== 'user' && data.organization_id) {
+        userData.organization_id = data.organization_id;
       }
       
-      // Use the registration endpoint - backend will handle password generation and email
-      const newUser = await apiPost('/users/register/', {
-        ...userData,
-        // Tell the backend to auto-generate a password and send welcome email
-        send_welcome_email: true,
-        auto_generate_password: true
+      // Use the main users endpoint for admin-created users
+      const newUser = await apiPost('/users/', userData, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        }
       });
       
       // Add new user to the list
@@ -855,20 +861,6 @@ const UserManagementSection = () => {
                 />
               </div>
               
-              <FormField
-                control={form.control}
-                name="username"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Username <span className="text-destructive">*</span></FormLabel>
-                    <FormControl>
-                      <Input placeholder="johndoe" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
               <FormField
                 control={form.control}
                 name="email"

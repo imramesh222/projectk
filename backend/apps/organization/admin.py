@@ -113,24 +113,74 @@ class PlanDurationInline(admin.TabularInline):
     model = PlanDuration
     extra = 1
     fields = ('duration_months', 'price', 'discount_percentage', 'is_default', 'is_active')
+    readonly_fields = ()  # Removed non-existent fields
+    
+    def formfield_for_dbfield(self, db_field, **kwargs):
+        field = super().formfield_for_dbfield(db_field, **kwargs)
+        if db_field.name == 'plan':
+            field.widget.can_add_related = False
+            field.widget.can_change_related = False
+            field.widget.can_delete_related = False
+        return field
 
-@admin.register(SubscriptionPlan)
+
 class SubscriptionPlanAdmin(admin.ModelAdmin):
-    list_display = ('name', 'description', 'is_active', 'created_at')
+    list_display = ('name', 'description', 'is_active', 'durations_count', 'created_at')
     list_filter = ('is_active', 'created_at')
     search_fields = ('name', 'description')
     inlines = [PlanDurationInline]
+    readonly_fields = ('created_at', 'updated_at', 'durations_count')
+    fieldsets = (
+        (None, {
+            'fields': ('name', 'description', 'is_active')
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        })
+    )
+    
+    def durations_count(self, obj):
+        return obj.durations.count()
+    durations_count.short_description = 'Durations'
+    
+    def get_queryset(self, request):
+        return super().get_queryset(request).prefetch_related('durations')
 
-@admin.register(OrganizationSubscription)
+
 class OrganizationSubscriptionAdmin(admin.ModelAdmin):
-    list_display = ('organization', 'plan_duration', 'is_active', 'auto_renew', 'start_date', 'end_date')
+    list_display = ('organization', 'plan_duration_with_plan', 'status', 'auto_renew', 'start_date', 'end_date', 'days_remaining')
     list_filter = ('is_active', 'auto_renew', 'start_date', 'end_date')
     search_fields = ('organization__name', 'plan_duration__plan__name')
     list_select_related = ('organization', 'plan_duration__plan')
+    readonly_fields = ('created_at', 'updated_at', 'days_remaining')
+    date_hierarchy = 'start_date'
+    
+    def plan_duration_with_plan(self, obj):
+        return f"{obj.plan_duration.plan.name} - {obj.plan_duration.duration_months} months"
+    plan_duration_with_plan.short_description = 'Plan & Duration'
+    
+    def status(self, obj):
+        return 'Active' if obj.is_active else 'Inactive'
+    status.short_description = 'Status'
+    
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related('organization', 'plan_duration__plan')
+    
+    def save_model(self, request, obj, form, change):
+        # Ensure only one active subscription per organization
+        if obj.is_active:
+            OrganizationSubscription.objects.filter(
+                organization=obj.organization,
+                is_active=True
+            ).exclude(pk=obj.pk).update(is_active=False)
+        super().save_model(request, obj, form, change)
 
 # Register models
 admin.site.register(Organization, OrganizationAdmin)
 admin.site.register(OrganizationMember, OrganizationMemberAdmin)
+admin.site.register(SubscriptionPlan, SubscriptionPlanAdmin)
+admin.site.register(OrganizationSubscription, OrganizationSubscriptionAdmin)
 
 # Unregister the default Group admin
 admin.site.unregister(Group)

@@ -18,20 +18,21 @@ from ..serializers import (
 class SubscriptionPlanViewSet(viewsets.ModelViewSet):
     """
     API endpoint for managing subscription plans.
-    Read access for all authenticated users, write access for admin users only.
+    Public read access, write access for admin users only.
     """
     queryset = SubscriptionPlan.objects.filter(is_active=True)
     serializer_class = SubscriptionPlanSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.AllowAny]  # Allow public read access
     
     def get_permissions(self):
         """
         Instantiates and returns the list of permissions that this view requires.
+        Public read access, write access for admin users only.
         """
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
             permission_classes = [permissions.IsAdminUser]
         else:
-            permission_classes = [permissions.IsAuthenticated]
+            permission_classes = [permissions.AllowAny]  # Public read access
         return [permission() for permission in permission_classes]
     
     def get_queryset(self):
@@ -50,20 +51,19 @@ class SubscriptionPlanViewSet(viewsets.ModelViewSet):
 
 
 class PlanDurationViewSet(viewsets.ReadOnlyModelViewSet):
-    """
-    API endpoint for viewing plan durations.
-    """
+    """API endpoint for viewing plan durations."""
     queryset = PlanDuration.objects.filter(is_active=True)
     serializer_class = PlanDurationSerializer
-    permission_classes = [permissions.IsAuthenticated]
-    
+    permission_classes = [permissions.AllowAny]  # Public read access
+    pagination_class = None  # Disable pagination for plan durations
+
     def get_queryset(self):
         """Filter durations by plan if plan_id is provided."""
         queryset = super().get_queryset()
         plan_id = self.request.query_params.get('plan_id')
         if plan_id:
-            queryset = queryset.filter(plan_id=plan_id)
-        return queryset
+            queryset = queryset.filter(plan_id=plan_id, is_active=True)
+        return queryset.select_related('plan')  # Optimize queries with select_related
 
 
 class OrganizationSubscriptionViewSet(viewsets.ModelViewSet):
@@ -79,13 +79,16 @@ class OrganizationSubscriptionViewSet(viewsets.ModelViewSet):
         Organization admins can see their organization's subscription.
         """
         user = self.request.user
+        queryset = OrganizationSubscription.objects.select_related(
+            'organization', 'plan_duration__plan'
+        )
+        
         if user.is_superuser:
-            return OrganizationSubscription.objects.all()
+            return queryset
             
-        # For organization admins
-        org = user.organization_members.filter(role='admin').first()
-        if org:
-            return OrganizationSubscription.objects.filter(organization=org.organization)
+        # For non-superusers, only show their organization's subscription
+        if hasattr(user, 'organization') and user.organization:
+            return queryset.filter(organization=user.organization)
             
         return OrganizationSubscription.objects.none()
     

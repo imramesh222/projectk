@@ -167,6 +167,7 @@ const defaultDashboardData: DashboardData = {
 
 // Import the frontend types from systemService
 import { FrontendSystemHealth } from '@/services/systemService';
+import { SystemSettingsSection } from './sections/SystemSettingsSection';
 
 // Default system health data
 const defaultSystemHealth: FrontendSystemHealth = {
@@ -385,9 +386,13 @@ function SuperAdminOverview() {
         return formattedActivity;
       });
 
-      setActivities(formattedActivities);
+      // Ensure all activities have unique IDs
+      const activitiesWithUniqueIds = formattedActivities.map((activity, index) => ({
+        ...activity,
+        id: activity.id || `activity-${Date.now()}-${index}`
+      }));
       
-      setActivities(formattedActivities);
+      setActivities(activitiesWithUniqueIds);
     } catch (err) {
       console.error('Error fetching dashboard data:', err);
       setError('Failed to load dashboard data. Please try again later.');
@@ -811,8 +816,11 @@ function SuperAdminOverview() {
                 <span className="text-sm text-muted-foreground">Loading activities...</span>
               </div>
             ) : activities.length > 0 ? (
-              activities.map((activity) => (
-                <div key={activity.id} className="flex items-start p-4 hover:bg-muted/30 transition-colors">
+              activities.map((activity, index) => (
+                <div 
+                  key={activity.id || `activity-${index}-${Date.now()}`} 
+                  className="flex items-start p-4 hover:bg-muted/30 transition-colors"
+                >
                   <div className="flex-shrink-0 mt-0.5">
                     <div className={`flex items-center justify-center w-9 h-9 rounded-full ${
                       activity.type === 'member' ? 'bg-blue-100 dark:bg-blue-900/30' :
@@ -873,12 +881,12 @@ function SuperAdminOverview() {
 
       {/* Section Components - These are now self-contained with their own data fetching */}
       <div className="space-y-6">
-        {/* <SystemHealthSection />
-        <UserStatisticsSection />
-        <OrganizationMetricsSection />
-        <UserManagementSection />
+        {/* <SystemHealthSection /> */}
+        {/* <UserStatisticsSection /> */}
+        {/* <OrganizationMetricsSection /> */}
+        {/* <UserManagementSection /> */}
         <OrganizationManagementSection />
-        <SystemSettingsSection /> */}
+        {/* <SystemSettingsSection /> */}
       </div>
     </div>
   );

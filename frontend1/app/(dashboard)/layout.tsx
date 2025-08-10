@@ -50,29 +50,41 @@ export default function DashboardLayout({
           return;
         }
         
-        // Verify path access
-        const rolePath = pathname.split('/')[1];
+        // Get user role
         const userRole = user.role.toLowerCase();
         
         debug('Path verification:', { 
           currentPath: pathname,
-          rolePath, 
           userRole,
-          isDashboardPath: pathname.startsWith('/dashboard')
+          isDashboardPath: pathname.startsWith('/dashboard'),
+          isOrganizationPath: pathname.startsWith('/organization')
         });
         
-        // Allow access to dashboard or role-specific paths
-        const isAllowedPath = rolePath === userRole || 
-                            pathname.startsWith('/dashboard') ||
-                            pathname === '/';
+        // Define allowed paths based on role
+        const allowedPaths: Record<string, string[]> = {
+          'superadmin': ['/superadmin', '/organization/dashboard', '/dashboard'],
+          'admin': ['/organization/dashboard', '/dashboard'],
+          'user': ['/dashboard']
+        };
+        
+        // Get allowed paths for the user's role, default to dashboard if role not found
+        const userAllowedPaths = allowedPaths[userRole] || ['/dashboard'];
+        
+        // Check if current path is allowed
+        const isAllowedPath = userAllowedPaths.some(allowedPath => 
+          pathname === allowedPath || pathname.startsWith(`${allowedPath}/`)
+        );
         
         if (!isAllowedPath) {
           debug(`Access denied: User role ${userRole} cannot access ${pathname}`);
           setError(`You don't have permission to access this page. Redirecting to your dashboard...`);
           
+          // Redirect to the first allowed path for the user's role
+          const redirectPath = userAllowedPaths[0];
+          
           // Small delay to show the error message before redirecting
           setTimeout(() => {
-            router.push(`/${userRole}`);
+            router.push(redirectPath);
           }, 1500);
           
           return;

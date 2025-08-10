@@ -131,11 +131,11 @@ export function RoleBasedLayout({ children }: RoleBasedLayoutProps) {
   };
 
   const handleLogout = () => {
-    // Clear auth tokens and redirect to login
+    // Clear auth tokens and redirect to projectk page
     if (typeof window !== 'undefined') {
       localStorage.removeItem('access_token');
       localStorage.removeItem('refresh_token');
-      window.location.href = '/login';
+      window.location.href = '/projectk';
     }
   };
 

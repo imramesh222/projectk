@@ -9,6 +9,7 @@ from .views import (
     OrganizationAdminDashboardView,
     debug_organization_view
 )
+from .views.registration_views import OrganizationRegistrationView
 from .views.subscription_views import (
     SubscriptionPlanViewSet,
     PlanDurationViewSet,
@@ -45,6 +46,9 @@ router.register(r'subscription/subscriptions', OrganizationSubscriptionViewSet, 
 urlpatterns = [
     # Include router URLs
     path('', include(router.urls)),
+    
+    # Organization registration
+    path('register/', OrganizationRegistrationView.as_view(), name='organization-register'),
     
     # Debug endpoint
     path('organizations/debug/<uuid:pk>/', debug_organization_view, name='debug-organization'),
