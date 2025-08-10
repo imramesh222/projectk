@@ -481,31 +481,8 @@ function SuperAdminOverview() {
     return cards;
   }, [isLoading, metrics, formatNumber, formatCurrency]);
 
-  // Update activities when dashboard data changes
-  useEffect(() => {
-    if (dashboardData.recentActivities) {
-      const formattedActivities: ExtendedActivity[] = dashboardData.recentActivities.map(activity => {
-        // Convert the activity to the ExtendedActivity format with proper typing
-        const timestamp = 'timestamp' in activity ? 
-          (typeof activity.timestamp === 'string' ? activity.timestamp : new Date().toISOString()) : 
-          new Date().toISOString();
-        
-        // Ensure the type is one of the allowed values
-        const activityType = 'type' in activity ? String(activity.type) : 'system';
-        const validTypes: Array<ExtendedActivity['type']> = ['member', 'project', 'billing', 'meeting', 'system'];
-        const type = validTypes.includes(activityType as any) ? activityType as ExtendedActivity['type'] : 'system';
-        
-        return {
-          id: 'id' in activity ? String(activity.id) : Math.random().toString(36).substr(2, 9),
-          title: 'title' in activity ? String(activity.title) : 'Activity',
-          description: 'description' in activity ? String(activity.description) : '',
-          timestamp,
-          type
-        } as ExtendedActivity; // Explicit cast to ensure type safety
-      });
-      setActivities(formattedActivities);
-    }
-  }, [dashboardData.recentActivities]);
+  // Update activities when dashboard data changes - removed duplicate logic
+  // Activities are now only set from the fetchData function
 
   // Prepare data for section components
   const organizationMetrics: OrganizationMetrics = useMemo(() => ({
@@ -716,7 +693,7 @@ function SuperAdminOverview() {
           <CardContent>
             <div className="space-y-2">
               {systemHealth.services.map((service, i) => (
-                <div key={i} className="flex items-center justify-between text-sm">
+                <div key={`${service.name || 'service'}-${i}`} className="flex items-center justify-between text-sm">
                   <span>{service.name}</span>
                   <span className={`inline-flex items-center ${
                     service.status === 'up' ? 'text-green-500' : 'text-red-500'
@@ -764,7 +741,7 @@ function SuperAdminOverview() {
       {/* Metrics Grid */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {metricCards.map((card, index) => (
-          <Card key={index}>
+          <Card key={`${card.title.toLowerCase().replace(/\s+/g, '-')}-${index}`}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">
                 {card.title}
@@ -816,9 +793,13 @@ function SuperAdminOverview() {
                 <span className="text-sm text-muted-foreground">Loading activities...</span>
               </div>
             ) : activities.length > 0 ? (
-              activities.map((activity, index) => (
+              activities.map((activity, index) => {
+                // Ensure we have a unique key for each activity
+                const activityKey = activity.id || `activity-${index}-${activity.timestamp || Date.now()}`;
+                
+                return (
                 <div 
-                  key={activity.id || `activity-${index}-${Date.now()}`} 
+                  key={activityKey}
                   className="flex items-start p-4 hover:bg-muted/30 transition-colors"
                 >
                   <div className="flex-shrink-0 mt-0.5">
@@ -865,7 +846,8 @@ function SuperAdminOverview() {
                     </div>
                   </div>
                 </div>
-              ))
+                );
+              })
             ) : (
               <div className="flex flex-col items-center justify-center py-10 px-4 text-center">
                 <Activity className="w-6 h-6 text-muted-foreground mb-2" />

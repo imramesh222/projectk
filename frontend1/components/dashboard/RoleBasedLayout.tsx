@@ -31,7 +31,12 @@ interface RoleBasedLayoutProps {
 
 const getNavigationForRole = (role: UserRole) => {
   const baseNavigation = [
-    { name: 'Overview', href: `/${role === 'superadmin' ? 'superadmin' : role}`, icon: Home, current: true },
+    { 
+      name: 'Overview', 
+      href: role === 'superadmin' ? '/superadmin' : '/organization/dashboard', 
+      icon: Home, 
+      current: true 
+    },
   ];
 
   // Add a default empty array for any role not explicitly defined
@@ -47,11 +52,11 @@ const getNavigationForRole = (role: UserRole) => {
       { name: 'Maintenance', href: '/superadmin/maintenance', icon: Wrench, current: false },
     ],
     admin: [
-      { name: 'Members', href: '/members', icon: Users, current: false },
-      { name: 'Projects', href: '/projects', icon: FolderOpen, current: false },
-      { name: 'Billing', href: '/billing', icon: DollarSign, current: false },
-      { name: 'Settings', href: '/org-settings', icon: Settings, current: false },
-      { name: 'Reports', href: '/reports', icon: BarChart3, current: false },
+      { name: 'Members', href: '/organization/members', icon: Users, current: false },
+      { name: 'Projects', href: '/organization/projects', icon: FolderOpen, current: false },
+      { name: 'Billing', href: '/organization/billing', icon: DollarSign, current: false },
+      { name: 'Settings', href: '/organization/settings', icon: Settings, current: false },
+      { name: 'Reports', href: '/organization/reports', icon: BarChart3, current: false },
     ],
     manager: [
       { name: 'Projects', href: '/projects', icon: FolderOpen, current: false },
