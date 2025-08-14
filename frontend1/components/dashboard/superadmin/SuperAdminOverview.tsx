@@ -863,12 +863,12 @@ function SuperAdminOverview() {
 
       {/* Section Components - These are now self-contained with their own data fetching */}
       <div className="space-y-6">
-        {/* <SystemHealthSection /> */}
-        {/* <UserStatisticsSection /> */}
-        {/* <OrganizationMetricsSection /> */}
-        {/* <UserManagementSection /> */}
-        <OrganizationManagementSection />
-        {/* <SystemSettingsSection /> */}
+      <UserManagementSection />
+      <OrganizationManagementSection />
+      <SystemHealthSection />
+      <UserStatisticsSection />
+      <OrganizationMetricsSection />
+      <SystemSettingsSection />
       </div>
     </div>
   );

@@ -32,6 +32,10 @@ organization_viewset = OrganizationViewSet.as_view({
 organization_member_viewset = OrganizationMemberViewSet.as_view({
     'get': 'list',
     'post': 'create',
+    'get': 'retrieve',
+    'put': 'update',
+    'patch': 'partial_update',
+    'delete': 'destroy'
 })
 
 # Initialize router for ViewSets
@@ -58,17 +62,12 @@ urlpatterns = [
     path('dashboard/admin/overview/', OrganizationAdminDashboardView.as_view(), name='organization-admin-dashboard'),
     
     # Organization CRUD endpoints
-    path('organizations/', 
-         OrganizationViewSet.as_view({'get': 'list', 'post': 'create'}), 
-         name='organization-list'),
-    path('organizations/<uuid:pk>/', 
-         OrganizationViewSet.as_view({
-             'get': 'retrieve',
-             'put': 'update',
-             'patch': 'partial_update',
-             'delete': 'destroy',
-         }), 
-         name='organization-detail'),
+    path('organizations/', organization_viewset, name='organization-list'),
+    path('organizations/<uuid:pk>/', organization_viewset, name='organization-detail'),
+    
+    # Organization members
+    path('organization-members/', organization_member_viewset, name='organization-members-list'),
+    path('organization-members/<uuid:pk>/', organization_member_viewset, name='organization-members-detail'),
     
     # Organization member management
     path('organizations/<uuid:pk>/members/', 
